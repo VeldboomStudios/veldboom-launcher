@@ -1,21 +1,94 @@
 let games = [];
+let filesData = { loggedIn: false, items: [] };
+let user = null;
 let selectedId = null;
-const busy = new Map(); // id -> { phase, pct }
+const busy = new Map(); // progressId -> { phase, pct }
 
 const grid = document.getElementById('game-grid');
 const emptyState = document.getElementById('empty-state');
 const statusMessage = document.getElementById('status-message');
 const overlay = document.getElementById('detail-overlay');
+const loginOverlay = document.getElementById('login-overlay');
 
-function showStatus(msg, isError) {
-  statusMessage.textContent = msg;
-  statusMessage.style.color = isError ? '#ff6b6b' : '';
-  statusMessage.classList.remove('hidden');
+// --- View switching ---
+
+document.querySelectorAll('.nav-item').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    const view = btn.dataset.view;
+    document.getElementById('view-library').classList.toggle('hidden', view !== 'library');
+    document.getElementById('view-files').classList.toggle('hidden', view !== 'files');
+    if (view === 'files') loadFiles();
+  });
+});
+
+// --- Status helpers ---
+
+function showStatus(el, msg, isError) {
+  el.textContent = msg;
+  el.style.color = isError ? '#ff6b6b' : '';
+  el.classList.remove('hidden');
 }
 
-function hideStatus() {
-  statusMessage.classList.add('hidden');
+function cleanError(err) {
+  return String(err.message || err).replace(/^.*Error: /, '');
 }
+
+// --- Auth ---
+
+function renderUser() {
+  const box = document.getElementById('user-box');
+  if (user) {
+    box.innerHTML = `
+      <div class="user-row">
+        <img class="user-avatar" src="${user.avatar}" alt="" />
+        <div class="user-meta">
+          <div class="user-name"></div>
+          <button id="signout-btn" class="link-btn">Sign out</button>
+        </div>
+      </div>`;
+    box.querySelector('.user-name').textContent = user.name;
+    box.querySelector('#signout-btn').addEventListener('click', async () => {
+      await window.launcher.authLogout();
+      user = null;
+      renderUser();
+      loadGames();
+      loadFiles();
+    });
+  } else {
+    box.innerHTML = '<button id="signin-btn" class="btn btn-primary btn-block">Sign in with GitHub</button>';
+    box.querySelector('#signin-btn').addEventListener('click', startLogin);
+  }
+}
+
+async function startLogin() {
+  const codeEl = document.getElementById('login-code');
+  const statusEl = document.getElementById('login-status');
+  codeEl.textContent = '····-····';
+  statusEl.textContent = 'Contacting GitHub…';
+  loginOverlay.classList.remove('hidden');
+  try {
+    const d = await window.launcher.authStart();
+    codeEl.textContent = d.userCode;
+    statusEl.textContent = 'Waiting for you to approve in the browser…';
+    try { await navigator.clipboard.writeText(d.userCode); } catch {}
+    user = await window.launcher.authPoll({ deviceCode: d.deviceCode, interval: d.interval });
+    loginOverlay.classList.add('hidden');
+    renderUser();
+    loadGames();
+    loadFiles();
+  } catch (err) {
+    statusEl.textContent = cleanError(err);
+    statusEl.style.color = '#ff6b6b';
+  }
+}
+
+document.getElementById('login-close').addEventListener('click', () => {
+  loginOverlay.classList.add('hidden');
+});
+
+// --- Library (games) ---
 
 function badgeFor(game) {
   if (busy.has(game.id)) {
@@ -133,7 +206,7 @@ async function installGame(game) {
     await loadGames();
   } catch (err) {
     busy.delete(game.id);
-    showStatus(`Install failed: ${err.message.replace(/^.*Error: /, '')}`, true);
+    showStatus(statusMessage, `Install failed: ${cleanError(err)}`, true);
     renderGrid();
     renderDetail();
   }
@@ -143,7 +216,7 @@ async function launchGame(game) {
   try {
     await window.launcher.launch(game.id);
   } catch (err) {
-    showStatus(`Could not start game: ${err.message.replace(/^.*Error: /, '')}`, true);
+    showStatus(statusMessage, `Could not start game: ${cleanError(err)}`, true);
   }
 }
 
@@ -152,25 +225,126 @@ async function uninstallGame(game) {
     await window.launcher.uninstall(game.id);
     await loadGames();
   } catch (err) {
-    showStatus(`Uninstall failed: ${err.message.replace(/^.*Error: /, '')}`, true);
+    showStatus(statusMessage, `Uninstall failed: ${cleanError(err)}`, true);
   }
 }
 
 async function loadGames() {
   try {
-    hideStatus();
+    statusMessage.classList.add('hidden');
     games = await window.launcher.listGames();
     renderGrid();
     if (selectedId) renderDetail();
   } catch (err) {
     showStatus(
+      statusMessage,
       'Could not load the game catalog. Check your internet connection and try Refresh.',
       true
     );
   }
 }
 
+// --- Files ---
+
+function fmtSize(bytes) {
+  if (!bytes) return '';
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb.toFixed(1)} MB`;
+}
+
+function renderFiles() {
+  const list = document.getElementById('files-list');
+  const empty = document.getElementById('files-empty');
+  list.innerHTML = '';
+  empty.classList.toggle('hidden', filesData.items.length > 0);
+
+  for (const item of filesData.items) {
+    const row = document.createElement('div');
+    row.className = 'file-row';
+
+    let body;
+    if (item.access) {
+      const assetBtns = item.assets
+        .map(
+          (a, i) =>
+            `<button class="btn btn-primary btn-small" data-idx="${i}">&#x2193; ${a.name}${a.size ? ` (${fmtSize(a.size)})` : ''}</button>`
+        )
+        .join('');
+      body = `
+        <div class="file-meta">
+          <div class="file-title"></div>
+          <div class="file-desc"></div>
+          ${item.version ? `<div class="file-version">v${item.version}</div>` : ''}
+        </div>
+        <div class="file-actions">${assetBtns || '<span class="file-locked">No files in latest release</span>'}</div>`;
+    } else {
+      const reason = filesData.loggedIn
+        ? '&#x1f512; No access — contact Veldboom Studios'
+        : '&#x1f512; Sign in to access';
+      body = `
+        <div class="file-meta">
+          <div class="file-title"></div>
+          <div class="file-desc"></div>
+        </div>
+        <div class="file-actions"><span class="file-locked">${reason}</span></div>`;
+    }
+    row.innerHTML = body;
+    row.querySelector('.file-title').textContent = item.title;
+    row.querySelector('.file-desc').textContent = item.description || '';
+
+    row.querySelectorAll('button[data-idx]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const asset = item.assets[Number(btn.dataset.idx)];
+        const progressId = `file:${asset.id}`;
+        btn.disabled = true;
+        const original = btn.innerHTML;
+        const off = window.launcher.onProgress; // progress handled globally below
+        const update = (pct) => {
+          btn.textContent = `Downloading ${Math.round(pct * 100)}%`;
+        };
+        fileProgressHandlers.set(progressId, update);
+        try {
+          const saved = await window.launcher.fileDownload({
+            url: asset.url,
+            name: asset.name,
+            progressId,
+          });
+          btn.innerHTML = saved ? '&#x2713; Downloaded' : original;
+          if (!saved) btn.disabled = false;
+        } catch (err) {
+          showStatus(document.getElementById('files-status'), `Download failed: ${cleanError(err)}`, true);
+          btn.innerHTML = original;
+          btn.disabled = false;
+        } finally {
+          fileProgressHandlers.delete(progressId);
+        }
+      });
+    });
+
+    list.appendChild(row);
+  }
+}
+
+const fileProgressHandlers = new Map();
+
+async function loadFiles() {
+  try {
+    document.getElementById('files-status').classList.add('hidden');
+    filesData = await window.launcher.filesList();
+    renderFiles();
+  } catch (err) {
+    showStatus(document.getElementById('files-status'), 'Could not load files list.', true);
+  }
+}
+
+// --- Global progress events ---
+
 window.launcher.onProgress(({ id, phase, pct }) => {
+  const fileHandler = fileProgressHandlers.get(id);
+  if (fileHandler) {
+    if (phase === 'downloading') fileHandler(pct);
+    return;
+  }
   if (phase === 'done') {
     busy.delete(id);
   } else {
@@ -180,7 +354,10 @@ window.launcher.onProgress(({ id, phase, pct }) => {
   if (selectedId === id) renderDetail();
 });
 
+// --- Wire up ---
+
 document.getElementById('refresh-btn').addEventListener('click', loadGames);
+document.getElementById('files-refresh-btn').addEventListener('click', loadFiles);
 document.getElementById('detail-close').addEventListener('click', closeDetail);
 overlay.addEventListener('click', (e) => {
   if (e.target === overlay) closeDetail();
@@ -190,4 +367,10 @@ window.launcher.version().then((v) => {
   document.getElementById('launcher-version').textContent = `Launcher v${v}`;
 });
 
+window.launcher.authStatus().then((u) => {
+  user = u;
+  renderUser();
+});
+
+renderUser();
 loadGames();

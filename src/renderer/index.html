@@ -15,24 +15,40 @@
       </div>
       <nav>
         <button class="nav-item active" data-view="library">Library</button>
+        <button class="nav-item" data-view="files">Files</button>
       </nav>
       <div class="sidebar-footer">
+        <div id="user-box" class="user-box">
+          <button id="signin-btn" class="btn btn-primary btn-block">Sign in with GitHub</button>
+        </div>
         <span id="launcher-version"></span>
       </div>
     </aside>
 
     <main class="content">
-      <header class="topbar">
-        <h1>Library</h1>
-        <button id="refresh-btn" class="btn btn-ghost" title="Refresh catalog">&#x21bb; Refresh</button>
-      </header>
+      <section id="view-library">
+        <header class="topbar">
+          <h1>Library</h1>
+          <button id="refresh-btn" class="btn btn-ghost" title="Refresh catalog">&#x21bb; Refresh</button>
+        </header>
+        <div id="status-message" class="status-message hidden"></div>
+        <div id="game-grid" class="game-grid"></div>
+        <div id="empty-state" class="empty-state hidden">
+          <p>No games yet — new releases will show up here automatically.</p>
+        </div>
+      </section>
 
-      <div id="status-message" class="status-message hidden"></div>
-      <div id="game-grid" class="game-grid"></div>
-
-      <div id="empty-state" class="empty-state hidden">
-        <p>No games yet — new releases will show up here automatically.</p>
-      </div>
+      <section id="view-files" class="hidden">
+        <header class="topbar">
+          <h1>Files</h1>
+          <button id="files-refresh-btn" class="btn btn-ghost">&#x21bb; Refresh</button>
+        </header>
+        <div id="files-status" class="status-message hidden"></div>
+        <div id="files-list" class="files-list"></div>
+        <div id="files-empty" class="empty-state hidden">
+          <p>No files available.</p>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -49,6 +65,18 @@
           <span id="detail-progress-label"></span>
         </div>
         <div class="detail-actions" id="detail-actions"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="login-overlay" class="overlay hidden">
+    <div class="detail-card login-card">
+      <button id="login-close" class="detail-close">&times;</button>
+      <div class="detail-body">
+        <h2>Sign in with GitHub</h2>
+        <p class="login-hint">A browser window has opened. Enter this code there to sign in:</p>
+        <div id="login-code" class="login-code">····-····</div>
+        <p id="login-status" class="login-status">Waiting for you to approve in the browser…</p>
       </div>
     </div>
   </div>

@@ -1,4 +1,5 @@
 {
+  "githubClientId": "",
   "games": [
     {
       "id": "example-game",
@@ -7,6 +8,14 @@
       "image": "",
       "repo": "VeldboomStudios/example-game",
       "exe": "MyFirstGame.exe"
+    }
+  ],
+  "files": [
+    {
+      "id": "example-beta",
+      "title": "Example Beta Build",
+      "description": "Replace with a real gated download. Point repo at a PRIVATE repo — only GitHub users you invite as collaborators can see and download its release assets.",
+      "repo": "VeldboomStudios/example-private-files"
     }
   ]
 }

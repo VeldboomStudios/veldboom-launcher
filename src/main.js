@@ -1,4 +1,12 @@
-const { app, BrowserWindow, ipcMain, shell, net } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  shell,
+  net,
+  safeStorage,
+  dialog,
+} = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
@@ -8,11 +16,14 @@ const { autoUpdater } = require('electron-updater');
 
 const MANIFEST_URL =
   'https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/games.json';
+const DEVICE_CODE_URL = 'https://github.com/login/device/code';
+const TOKEN_URL = 'https://github.com/login/oauth/access_token';
 
 let win = null;
 
 const gamesDir = () => path.join(app.getPath('userData'), 'games');
 const installedFile = () => path.join(app.getPath('userData'), 'installed.json');
+const tokenFile = () => path.join(app.getPath('userData'), 'auth.bin');
 
 function readInstalled() {
   try {
@@ -27,14 +38,47 @@ function writeInstalled(data) {
   fs.writeFileSync(installedFile(), JSON.stringify(data, null, 2));
 }
 
-async function ghFetch(url) {
-  const res = await net.fetch(url, {
-    headers: {
-      'User-Agent': 'VeldboomLauncher',
-      Accept: 'application/vnd.github+json',
-    },
+// --- Auth token storage (encrypted at rest via OS keychain / DPAPI) ---
+
+function saveToken(token) {
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('Secure storage is not available on this system.');
+  }
+  fs.mkdirSync(path.dirname(tokenFile()), { recursive: true });
+  fs.writeFileSync(tokenFile(), safeStorage.encryptString(token));
+}
+
+function loadToken() {
+  try {
+    return safeStorage.decryptString(fs.readFileSync(tokenFile()));
+  } catch {
+    return null;
+  }
+}
+
+function clearToken() {
+  fs.rmSync(tokenFile(), { force: true });
+}
+
+// --- GitHub helpers ---
+
+async function ghFetch(url, extraHeaders = {}) {
+  const headers = {
+    'User-Agent': 'VeldboomLauncher',
+    Accept: 'application/vnd.github+json',
+    ...extraHeaders,
+  };
+  const token = loadToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return net.fetch(url, { headers });
+}
+
+async function getManifest() {
+  const res = await net.fetch(`${MANIFEST_URL}?t=${Date.now()}`, {
+    headers: { 'User-Agent': 'VeldboomLauncher' },
   });
-  return res;
+  if (!res.ok) throw new Error(`Could not load catalog (HTTP ${res.status})`);
+  return res.json();
 }
 
 async function latestRelease(repo) {
@@ -46,7 +90,7 @@ async function latestRelease(repo) {
     if (!asset) return null;
     return {
       version: String(rel.tag_name || '').replace(/^v/i, ''),
-      url: asset.browser_download_url,
+      assetUrl: `https://api.github.com/repos/${repo}/releases/assets/${asset.id}`,
       size: asset.size,
       notes: rel.body || '',
     };
@@ -55,8 +99,11 @@ async function latestRelease(repo) {
   }
 }
 
-async function downloadFile(url, dest, onProgress) {
-  const res = await net.fetch(url, { headers: { 'User-Agent': 'VeldboomLauncher' } });
+// Downloads a release asset. Works for public repos unauthenticated and for
+// private repos with the stored token; GitHub redirects to a short-lived
+// storage URL and fetch drops the Authorization header on the cross-origin hop.
+async function downloadAsset(assetUrl, dest, onProgress) {
+  const res = await ghFetch(assetUrl, { Accept: 'application/octet-stream' });
   if (!res.ok) throw new Error(`Download failed (HTTP ${res.status})`);
   const total = Number(res.headers.get('content-length')) || 0;
   const file = fs.createWriteStream(dest);
@@ -85,7 +132,6 @@ async function downloadFile(url, dest, onProgress) {
 function findExe(dir, exeName) {
   const direct = path.join(dir, exeName);
   if (fs.existsSync(direct)) return direct;
-  // Zips often contain a top-level folder — search for the exe recursively.
   const stack = [dir];
   while (stack.length) {
     const current = stack.pop();
@@ -104,14 +150,86 @@ function sendProgress(id, phase, pct) {
   }
 }
 
-ipcMain.handle('app:version', () => app.getVersion());
+// --- Auth IPC ---
+
+async function currentUser() {
+  if (!loadToken()) return null;
+  const res = await ghFetch('https://api.github.com/user');
+  if (!res.ok) return null;
+  const u = await res.json();
+  return { login: u.login, name: u.name || u.login, avatar: u.avatar_url };
+}
+
+ipcMain.handle('auth:start', async () => {
+  const manifest = await getManifest();
+  const clientId = manifest.githubClientId;
+  if (!clientId) throw new Error('Sign-in is not configured yet. Try again later.');
+  const res = await net.fetch(DEVICE_CODE_URL, {
+    method: 'POST',
+    headers: {
+      'User-Agent': 'VeldboomLauncher',
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ client_id: clientId, scope: 'repo' }),
+  });
+  const d = await res.json();
+  if (!d.device_code) throw new Error(d.error_description || 'Could not start sign-in.');
+  shell.openExternal(d.verification_uri);
+  return {
+    userCode: d.user_code,
+    verificationUri: d.verification_uri,
+    deviceCode: d.device_code,
+    interval: d.interval || 5,
+  };
+});
+
+ipcMain.handle('auth:poll', async (_e, { deviceCode, interval }) => {
+  const manifest = await getManifest();
+  const clientId = manifest.githubClientId;
+  const deadline = Date.now() + 15 * 60 * 1000;
+  let waitMs = Math.max(interval || 5, 5) * 1000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, waitMs));
+    const res = await net.fetch(TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'User-Agent': 'VeldboomLauncher',
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        device_code: deviceCode,
+        grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+      }),
+    });
+    const d = await res.json();
+    if (d.access_token) {
+      saveToken(d.access_token);
+      return currentUser();
+    }
+    if (d.error === 'authorization_pending') continue;
+    if (d.error === 'slow_down') {
+      waitMs += 5000;
+      continue;
+    }
+    throw new Error(d.error_description || d.error || 'Sign-in failed.');
+  }
+  throw new Error('Sign-in timed out — try again.');
+});
+
+ipcMain.handle('auth:status', () => currentUser());
+
+ipcMain.handle('auth:logout', () => {
+  clearToken();
+  return true;
+});
+
+// --- Games IPC ---
 
 ipcMain.handle('games:list', async () => {
-  const res = await net.fetch(`${MANIFEST_URL}?t=${Date.now()}`, {
-    headers: { 'User-Agent': 'VeldboomLauncher' },
-  });
-  if (!res.ok) throw new Error(`Could not load game catalog (HTTP ${res.status})`);
-  const manifest = await res.json();
+  const manifest = await getManifest();
   const installed = readInstalled();
   const games = await Promise.all(
     (manifest.games || []).map(async (g) => {
@@ -121,12 +239,7 @@ ipcMain.handle('games:list', async () => {
       if (release && !inst) status = 'available';
       else if (release && inst) status = inst.version === release.version ? 'installed' : 'update';
       else if (!release && inst) status = 'installed';
-      return {
-        ...g,
-        latest: release,
-        installedVersion: inst ? inst.version : null,
-        status,
-      };
+      return { ...g, latest: release, installedVersion: inst ? inst.version : null, status };
     })
   );
   return games;
@@ -138,7 +251,7 @@ ipcMain.handle('games:install', async (_e, game) => {
   const zipPath = path.join(app.getPath('temp'), `${game.id}.zip`);
 
   sendProgress(game.id, 'downloading', 0);
-  await downloadFile(game.latest.url, zipPath, (p) =>
+  await downloadAsset(game.latest.assetUrl, zipPath, (p) =>
     sendProgress(game.id, 'downloading', p)
   );
 
@@ -186,6 +299,57 @@ ipcMain.handle('games:uninstall', async (_e, id) => {
   }
   return true;
 });
+
+// --- Gated files IPC ---
+
+ipcMain.handle('files:list', async () => {
+  const manifest = await getManifest();
+  const loggedIn = !!loadToken();
+  const items = await Promise.all(
+    (manifest.files || []).map(async (f) => {
+      let access = false;
+      let version = null;
+      let assets = [];
+      try {
+        const res = await ghFetch(`https://api.github.com/repos/${f.repo}/releases/latest`);
+        if (res.ok) {
+          const rel = await res.json();
+          access = true;
+          version = String(rel.tag_name || '').replace(/^v/i, '');
+          assets = (rel.assets || []).map((a) => ({
+            id: a.id,
+            name: a.name,
+            size: a.size,
+            url: `https://api.github.com/repos/${f.repo}/releases/assets/${a.id}`,
+          }));
+        }
+      } catch {
+        // no access or offline — shows as locked
+      }
+      return { ...f, access, version, assets };
+    })
+  );
+  return { loggedIn, items };
+});
+
+ipcMain.handle('files:download', async (_e, { url, name, progressId }) => {
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    defaultPath: path.join(app.getPath('downloads'), name),
+  });
+  if (canceled || !filePath) return null;
+  sendProgress(progressId, 'downloading', 0);
+  try {
+    await downloadAsset(url, filePath, (p) => sendProgress(progressId, 'downloading', p));
+    sendProgress(progressId, 'done', 1);
+    shell.showItemInFolder(filePath);
+    return filePath;
+  } catch (err) {
+    sendProgress(progressId, 'done', 1);
+    throw err;
+  }
+});
+
+ipcMain.handle('app:version', () => app.getVersion());
 
 ipcMain.handle('open:external', (_e, url) => {
   if (/^https?:\/\//.test(url)) shell.openExternal(url);

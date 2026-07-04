@@ -48,6 +48,24 @@ git push && git push --tags
 
 GitHub Actions builds `VeldboomLauncher-Setup.exe` and attaches it to the release. Installed launchers pick it up automatically on next start.
 
+## Sign-in & gated files
+
+The launcher has "Sign in with GitHub" (OAuth device flow — no passwords, no server). Signed-in users can access **gated files**: release assets from **private** repos listed in the `files` section of `games.json`.
+
+Access control = GitHub repo permissions:
+
+1. Create a private repo, e.g. `VeldboomStudios/beta-builds` and publish releases with assets on it.
+2. Add it to `games.json` under `"files"`:
+   ```json
+   { "id": "beta", "title": "Beta Builds", "description": "Early access builds", "repo": "VeldboomStudios/beta-builds" }
+   ```
+3. Grant someone access: `gh api -X PUT repos/VeldboomStudios/beta-builds/collaborators/<their-github-username> -f permission=pull`
+   (or repo Settings → Collaborators → Add people). Revoke = remove collaborator.
+
+Users without access see the item locked; users with access get download buttons in the launcher's **Files** tab.
+
+Setup (one-time): create a GitHub OAuth App at Settings → Developer settings → OAuth Apps → New OAuth App, tick **Enable Device Flow**, then put the Client ID in `games.json` as `"githubClientId"`. Tokens are stored encrypted on the user's machine (Windows DPAPI via Electron safeStorage). Note: the `repo` OAuth scope grants read access to all repos the signed-in user can see — collaborators should be invited to dedicated content repos only, never to source repos.
+
 ## Website download link
 
 Always points to the newest installer:

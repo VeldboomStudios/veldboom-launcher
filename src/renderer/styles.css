@@ -196,6 +196,52 @@ body {
 .progress-fill { height: 100%; background: var(--accent); width: 0; transition: width 0.2s; }
 #detail-progress-label { font-size: 12px; color: var(--text-dim); }
 
+/* User box / auth */
+.user-box { margin-bottom: 10px; }
+.btn-block { width: 100%; padding: 10px 12px; font-size: 13px; }
+.user-row { display: flex; align-items: center; gap: 10px; padding: 4px; }
+.user-avatar { width: 34px; height: 34px; border-radius: 50%; }
+.user-name { font-size: 13px; font-weight: 600; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link-btn { background: none; border: none; color: var(--text-dim); font-size: 11px; cursor: pointer; padding: 0; }
+.link-btn:hover { color: var(--text); }
+
+/* Login overlay */
+.login-card { width: 440px; }
+.login-hint { color: var(--text-dim); font-size: 14px; margin-bottom: 18px; }
+.login-code {
+  font-family: Consolas, monospace;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-align: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 16px;
+  user-select: text;
+}
+.login-status { color: var(--text-dim); font-size: 13px; text-align: center; }
+
+/* Files view */
+.files-list { display: flex; flex-direction: column; gap: 14px; }
+.file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 22px;
+}
+.file-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.file-desc { color: var(--text-dim); font-size: 13px; }
+.file-version { color: var(--text-dim); font-size: 12px; margin-top: 4px; }
+.file-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.btn-small { padding: 8px 14px; font-size: 13px; }
+.file-locked { color: var(--text-dim); font-size: 13px; }
+
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }

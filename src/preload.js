@@ -8,4 +8,12 @@ contextBridge.exposeInMainWorld('launcher', {
   uninstall: (id) => ipcRenderer.invoke('games:uninstall', id),
   openExternal: (url) => ipcRenderer.invoke('open:external', url),
   onProgress: (cb) => ipcRenderer.on('game:progress', (_e, data) => cb(data)),
+
+  authStart: () => ipcRenderer.invoke('auth:start'),
+  authPoll: (data) => ipcRenderer.invoke('auth:poll', data),
+  authStatus: () => ipcRenderer.invoke('auth:status'),
+  authLogout: () => ipcRenderer.invoke('auth:logout'),
+
+  filesList: () => ipcRenderer.invoke('files:list'),
+  fileDownload: (data) => ipcRenderer.invoke('files:download', data),
 });
