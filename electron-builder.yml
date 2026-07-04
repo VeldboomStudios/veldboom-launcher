@@ -9,6 +9,7 @@ publish:
   provider: github
   owner: VeldboomStudios
   repo: veldboom-launcher
+  releaseType: release
 win:
   target:
     - nsis
