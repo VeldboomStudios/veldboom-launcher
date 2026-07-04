@@ -1,0 +1,12 @@
+{
+  "games": [
+    {
+      "id": "example-game",
+      "title": "My First Game",
+      "description": "Replace this entry with your real game. The launcher shows 'Coming soon' until the repo below has a GitHub release with a .zip asset.",
+      "image": "",
+      "repo": "VeldboomStudios/example-game",
+      "exe": "MyFirstGame.exe"
+    }
+  ]
+}

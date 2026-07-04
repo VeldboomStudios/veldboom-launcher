@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src https: data:; style-src 'self' 'unsafe-inline'" />
+  <title>Veldboom Launcher</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">V</div>
+        <div class="brand-name">VELDBOOM<span>STUDIOS</span></div>
+      </div>
+      <nav>
+        <button class="nav-item active" data-view="library">Library</button>
+      </nav>
+      <div class="sidebar-footer">
+        <span id="launcher-version"></span>
+      </div>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <h1>Library</h1>
+        <button id="refresh-btn" class="btn btn-ghost" title="Refresh catalog">&#x21bb; Refresh</button>
+      </header>
+
+      <div id="status-message" class="status-message hidden"></div>
+      <div id="game-grid" class="game-grid"></div>
+
+      <div id="empty-state" class="empty-state hidden">
+        <p>No games yet — new releases will show up here automatically.</p>
+      </div>
+    </main>
+  </div>
+
+  <div id="detail-overlay" class="overlay hidden">
+    <div class="detail-card">
+      <button id="detail-close" class="detail-close">&times;</button>
+      <div class="detail-hero" id="detail-hero"></div>
+      <div class="detail-body">
+        <h2 id="detail-title"></h2>
+        <p id="detail-version" class="detail-version"></p>
+        <p id="detail-desc"></p>
+        <div id="detail-progress" class="progress hidden">
+          <div class="progress-bar"><div id="detail-progress-fill" class="progress-fill"></div></div>
+          <span id="detail-progress-label"></span>
+        </div>
+        <div class="detail-actions" id="detail-actions"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

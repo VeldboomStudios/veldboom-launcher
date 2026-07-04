@@ -1,0 +1,19 @@
+appId: com.veldboomstudios.launcher
+productName: Veldboom Launcher
+directories:
+  output: dist
+files:
+  - src/**/*
+  - package.json
+publish:
+  provider: github
+  owner: VeldboomStudios
+  repo: veldboom-launcher
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  artifactName: VeldboomLauncher-Setup.${ext}
+  shortcutName: Veldboom Launcher

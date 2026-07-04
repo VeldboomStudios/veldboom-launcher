@@ -1,0 +1,25 @@
+{
+  "name": "veldboom-launcher",
+  "version": "1.0.0",
+  "description": "Veldboom Studios game launcher — install, update and play Veldboom games",
+  "main": "src/main.js",
+  "author": "Veldboom Studios",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VeldboomStudios/veldboom-launcher.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win",
+    "publish": "electron-builder --win --publish always"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9",
+    "extract-zip": "^2.0.1"
+  }
+}
