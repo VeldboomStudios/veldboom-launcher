@@ -32,6 +32,7 @@
           <button id="refresh-btn" class="btn btn-ghost" title="Refresh catalog">&#x21bb; Refresh</button>
         </header>
         <div id="status-message" class="status-message hidden"></div>
+        <div id="news-hero" class="news-hero hidden"></div>
         <div id="game-grid" class="game-grid"></div>
         <div id="empty-state" class="empty-state hidden">
           <p>No games yet — new releases will show up here automatically.</p>
@@ -60,6 +61,11 @@
         <h2 id="detail-title"></h2>
         <p id="detail-version" class="detail-version"></p>
         <p id="detail-desc"></p>
+        <p id="detail-playtime" class="detail-playtime hidden"></p>
+        <div id="detail-notes" class="detail-notes hidden">
+          <h3 id="detail-notes-title">What's new</h3>
+          <pre id="detail-notes-body"></pre>
+        </div>
         <div id="detail-progress" class="progress hidden">
           <div class="progress-bar"><div id="detail-progress-fill" class="progress-fill"></div></div>
           <span id="detail-progress-label"></span>

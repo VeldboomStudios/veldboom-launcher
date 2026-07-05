@@ -245,3 +245,69 @@ body {
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* --- v1.2: news hero --- */
+.news-hero {
+  position: relative;
+  height: 190px;
+  border-radius: 14px;
+  background: linear-gradient(120deg, #16203a, #1a1430);
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+  margin-bottom: 22px;
+  border: 1px solid var(--border);
+}
+.news-scrim {
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, rgba(9,11,16,0.92) 0%, rgba(9,11,16,0.55) 45%, rgba(9,11,16,0.1) 100%);
+}
+.news-content {
+  position: absolute; left: 26px; top: 50%; transform: translateY(-50%);
+  max-width: 55%;
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+}
+.news-kicker {
+  font-size: 10px; letter-spacing: 4px; text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+}
+.news-title { font-size: 21px; font-weight: 700; }
+.news-body { font-size: 13px; color: var(--text-dim); line-height: 1.5; max-height: 3em; overflow: hidden; }
+.news-chips {
+  position: absolute; right: 16px; bottom: 14px;
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
+}
+.news-chip {
+  background: rgba(20, 23, 31, 0.85);
+  border: 1px solid var(--border);
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--text-dim);
+  cursor: pointer;
+  max-width: 260px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.news-chip:hover { color: var(--text); border-color: var(--accent); }
+
+/* --- v1.2: running state, playtime, release notes --- */
+.badge.running { background: rgba(46, 204, 113, 0.15); color: var(--green); }
+.detail-playtime { color: var(--text-dim); font-size: 12.5px; margin: 2px 0 0; }
+.detail-notes {
+  margin-top: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.detail-notes h3 { font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
+.detail-notes pre {
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}

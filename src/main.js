@@ -144,9 +144,19 @@ function findExe(dir, exeName) {
   return null;
 }
 
-function sendProgress(id, phase, pct) {
+function sendProgress(id, phase, pct, extra = {}) {
   if (win && !win.isDestroyed()) {
-    win.webContents.send('game:progress', { id, phase, pct });
+    win.webContents.send('game:progress', { id, phase, pct, ...extra });
+  }
+}
+
+const runningGames = new Set();
+
+function sendRunning(id, running) {
+  if (running) runningGames.add(id);
+  else runningGames.delete(id);
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('game:running', { id, running });
   }
 }
 
@@ -239,7 +249,15 @@ ipcMain.handle('games:list', async () => {
       if (release && !inst) status = 'available';
       else if (release && inst) status = inst.version === release.version ? 'installed' : 'update';
       else if (!release && inst) status = 'installed';
-      return { ...g, latest: release, installedVersion: inst ? inst.version : null, status };
+      return {
+        ...g,
+        latest: release,
+        installedVersion: inst ? inst.version : null,
+        status,
+        playMs: inst ? inst.playMs || 0 : 0,
+        lastPlayed: inst ? inst.lastPlayed || null : null,
+        running: runningGames.has(g.id),
+      };
     })
   );
   return games;
@@ -251,9 +269,20 @@ ipcMain.handle('games:install', async (_e, game) => {
   const zipPath = path.join(app.getPath('temp'), `${game.id}.zip`);
 
   sendProgress(game.id, 'downloading', 0);
-  await downloadAsset(game.latest.assetUrl, zipPath, (p) =>
-    sendProgress(game.id, 'downloading', p)
-  );
+  // Progress with live speed: smooth bytes/sec over a short window.
+  let lastT = Date.now();
+  let lastP = 0;
+  let bps = 0;
+  const total = game.latest.size || 0;
+  await downloadAsset(game.latest.assetUrl, zipPath, (p) => {
+    const now = Date.now();
+    if (now - lastT > 400) {
+      bps = ((p - lastP) * total) / ((now - lastT) / 1000);
+      lastT = now;
+      lastP = p;
+    }
+    sendProgress(game.id, 'downloading', p, { total, bps });
+  });
 
   sendProgress(game.id, 'installing', 1);
   await fsp.rm(dir, { recursive: true, force: true });
@@ -280,13 +309,32 @@ ipcMain.handle('games:launch', async (_e, id) => {
   if (!inst) throw new Error('Game is not installed.');
   const exePath = path.join(inst.path, inst.exe);
   if (!fs.existsSync(exePath)) throw new Error('Game files are missing — reinstall the game.');
+  if (runningGames.has(id)) throw new Error('Game is already running.');
   const child = spawn(exePath, [], {
     cwd: path.dirname(exePath),
     detached: true,
     stdio: 'ignore',
   });
   child.unref();
+  // Playtime: count until the process we spawned exits (session lost if the launcher closes first).
+  const started = Date.now();
+  sendRunning(id, true);
+  child.on('exit', () => {
+    sendRunning(id, false);
+    const installed = readInstalled();
+    if (installed[id]) {
+      installed[id].playMs = (installed[id].playMs || 0) + (Date.now() - started);
+      installed[id].lastPlayed = new Date().toISOString();
+      writeInstalled(installed);
+    }
+  });
+  child.on('error', () => sendRunning(id, false));
   return true;
+});
+
+ipcMain.handle('news:list', async () => {
+  const manifest = await getManifest();
+  return manifest.news || [];
 });
 
 ipcMain.handle('games:uninstall', async (_e, id) => {

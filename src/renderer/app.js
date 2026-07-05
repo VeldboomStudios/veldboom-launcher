@@ -2,7 +2,8 @@ let games = [];
 let filesData = { loggedIn: false, items: [] };
 let user = null;
 let selectedId = null;
-const busy = new Map(); // progressId -> { phase, pct }
+const busy = new Map(); // progressId -> { phase, pct, total, bps }
+const running = new Set(); // game ids with a live process
 
 const grid = document.getElementById('game-grid');
 const emptyState = document.getElementById('empty-state');
@@ -96,6 +97,7 @@ function badgeFor(game) {
     const pct = Math.round(b.pct * 100);
     return `<span class="badge busy">${b.phase === 'downloading' ? `Downloading ${pct}%` : 'Installing…'}</span>`;
   }
+  if (running.has(game.id)) return '<span class="badge running">Running</span>';
   const labels = {
     installed: 'Installed',
     available: 'Install',
@@ -103,6 +105,47 @@ function badgeFor(game) {
     coming_soon: 'Coming soon',
   };
   return `<span class="badge ${game.status}">${labels[game.status] || game.status}</span>`;
+}
+
+// --- News hero (manifest-driven — post news by editing games.json on GitHub) ---
+
+async function loadNews() {
+  const hero = document.getElementById('news-hero');
+  try {
+    const news = await window.launcher.listNews();
+    if (!news.length) { hero.classList.add('hidden'); return; }
+    const n = news[0];
+    hero.classList.remove('hidden');
+    hero.style.backgroundImage = n.image ? `url('${n.image}')` : '';
+    hero.innerHTML = `
+      <div class="news-scrim"></div>
+      <div class="news-content">
+        <div class="news-kicker">News</div>
+        <div class="news-title"></div>
+        <div class="news-body"></div>
+        ${n.url ? '<button class="btn btn-primary btn-small" id="news-more">Read more</button>' : ''}
+      </div>
+      ${news.length > 1 ? `<div class="news-chips">${news.slice(1, 4).map((m) => `<div class="news-chip" title=""></div>`).join('')}</div>` : ''}`;
+    hero.querySelector('.news-title').textContent = n.title || '';
+    hero.querySelector('.news-body').textContent = n.body || '';
+    const chips = hero.querySelectorAll('.news-chip');
+    news.slice(1, 4).forEach((m, i) => {
+      if (chips[i]) {
+        chips[i].textContent = m.title || '';
+        if (m.url) chips[i].addEventListener('click', () => window.launcher.openExternal(m.url));
+      }
+    });
+    const more = hero.querySelector('#news-more');
+    if (more) more.addEventListener('click', () => window.launcher.openExternal(n.url));
+  } catch {
+    hero.classList.add('hidden');
+  }
+}
+
+function fmtPlaytime(ms) {
+  if (!ms || ms < 60000) return null;
+  const h = ms / 3600000;
+  return h >= 1 ? `${h.toFixed(1)} h` : `${Math.round(ms / 60000)} min`;
 }
 
 function renderGrid() {
@@ -154,13 +197,41 @@ function renderDetail() {
 
   document.getElementById('detail-desc').textContent = game.description || '';
 
+  // Playtime + last played.
+  const playEl = document.getElementById('detail-playtime');
+  const pt = fmtPlaytime(game.playMs);
+  if (pt || game.lastPlayed) {
+    const bits = [];
+    if (pt) bits.push(`Played ${pt}`);
+    if (game.lastPlayed) bits.push(`Last played ${new Date(game.lastPlayed).toLocaleDateString()}`);
+    playEl.textContent = bits.join('  ·  ');
+    playEl.classList.remove('hidden');
+  } else {
+    playEl.classList.add('hidden');
+  }
+
+  // Release notes from the game's GitHub release.
+  const notesWrap = document.getElementById('detail-notes');
+  if (game.latest && game.latest.notes && game.latest.notes.trim()) {
+    notesWrap.classList.remove('hidden');
+    document.getElementById('detail-notes-title').textContent = `What's new in v${game.latest.version}`;
+    document.getElementById('detail-notes-body').textContent = game.latest.notes.trim();
+  } else {
+    notesWrap.classList.add('hidden');
+  }
+
   const progressWrap = document.getElementById('detail-progress');
   const b = busy.get(game.id);
   if (b) {
     progressWrap.classList.remove('hidden');
     document.getElementById('detail-progress-fill').style.width = `${b.pct * 100}%`;
-    document.getElementById('detail-progress-label').textContent =
-      b.phase === 'downloading' ? `Downloading… ${Math.round(b.pct * 100)}%` : 'Installing…';
+    let label = 'Installing…';
+    if (b.phase === 'downloading') {
+      label = `Downloading… ${Math.round(b.pct * 100)}%`;
+      if (b.total) label += `  ·  ${fmtSize(b.pct * b.total)} / ${fmtSize(b.total)}`;
+      if (b.bps > 0) label += `  ·  ${fmtSize(b.bps)}/s`;
+    }
+    document.getElementById('detail-progress-label').textContent = label;
   } else {
     progressWrap.classList.add('hidden');
   }
@@ -180,6 +251,11 @@ function renderDetail() {
 
   if (b) {
     addBtn('Working…', 'btn-primary', () => {}, true);
+    return;
+  }
+
+  if (running.has(game.id)) {
+    addBtn('Running', 'btn-play', () => {}, true);
     return;
   }
 
@@ -339,7 +415,7 @@ async function loadFiles() {
 
 // --- Global progress events ---
 
-window.launcher.onProgress(({ id, phase, pct }) => {
+window.launcher.onProgress(({ id, phase, pct, total, bps }) => {
   const fileHandler = fileProgressHandlers.get(id);
   if (fileHandler) {
     if (phase === 'downloading') fileHandler(pct);
@@ -348,15 +424,23 @@ window.launcher.onProgress(({ id, phase, pct }) => {
   if (phase === 'done') {
     busy.delete(id);
   } else {
-    busy.set(id, { phase, pct });
+    busy.set(id, { phase, pct, total, bps });
   }
   renderGrid();
   if (selectedId === id) renderDetail();
 });
 
+window.launcher.onRunning(({ id, running: isRunning }) => {
+  if (isRunning) running.add(id);
+  else running.delete(id);
+  renderGrid();
+  if (selectedId === id) renderDetail();
+  if (!isRunning) loadGames(); // refresh playtime after a session
+});
+
 // --- Wire up ---
 
-document.getElementById('refresh-btn').addEventListener('click', loadGames);
+document.getElementById('refresh-btn').addEventListener('click', () => { loadGames(); loadNews(); });
 document.getElementById('files-refresh-btn').addEventListener('click', loadFiles);
 document.getElementById('detail-close').addEventListener('click', closeDetail);
 overlay.addEventListener('click', (e) => {
@@ -374,3 +458,4 @@ window.launcher.authStatus().then((u) => {
 
 renderUser();
 loadGames();
+loadNews();

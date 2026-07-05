@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('launcher', {
   uninstall: (id) => ipcRenderer.invoke('games:uninstall', id),
   openExternal: (url) => ipcRenderer.invoke('open:external', url),
   onProgress: (cb) => ipcRenderer.on('game:progress', (_e, data) => cb(data)),
+  onRunning: (cb) => ipcRenderer.on('game:running', (_e, data) => cb(data)),
+  listNews: () => ipcRenderer.invoke('news:list'),
 
   authStart: () => ipcRenderer.invoke('auth:start'),
   authPoll: (data) => ipcRenderer.invoke('auth:poll', data),

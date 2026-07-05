@@ -1,5 +1,13 @@
 {
   "githubClientId": "Ov23li6jruARbX2fJaNC",
+  "news": [
+    {
+      "title": "Isle of Eline — racing update in the works",
+      "body": "AI rivals that drive your car, Gran Turismo-style performance points, race replays with a cinematic camera, a best-lap ghost and an online lap-time leaderboard are all coming to the island.",
+      "image": "",
+      "url": ""
+    }
+  ],
   "games": [
     {
       "id": "example-game",
