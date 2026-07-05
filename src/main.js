@@ -304,13 +304,52 @@ ipcMain.handle('games:install', async (_e, game) => {
   return installed[game.id];
 });
 
+// Account link: hand the game who is playing and which DLC they own, refreshed at
+// every launch. Written next to the game files AND passed as -VeldboomSession=<path>
+// (UE reads it via FParse; other engines can just read veldboom_session.json).
+async function writeSessionManifest(id, inst) {
+  let player = null;
+  try { player = await currentUser(); } catch {}
+  const ownedDlc = [];
+  try {
+    const manifest = await getManifest();
+    const game = (manifest.games || []).find((g) => g.id === id);
+    for (const d of (game && game.dlc) || []) {
+      // Access to the private DLC repo's latest release = owned entitlement.
+      if (await latestRelease(d.repo)) ownedDlc.push(d.id);
+    }
+  } catch {
+    // Offline: fall back to DLC that is physically installed.
+    for (const k of Object.keys(inst.dlc || {})) ownedDlc.push(k);
+  }
+  for (const k of Object.keys(inst.dlc || {})) {
+    if (!ownedDlc.includes(k)) ownedDlc.push(k);
+  }
+  const session = {
+    player: player ? { login: player.login, name: player.name } : null,
+    dlc: ownedDlc,
+    installedDlc: inst.dlc || {},
+    issuedAt: new Date().toISOString(),
+  };
+  const file = path.join(inst.path, 'veldboom_session.json');
+  await fsp.writeFile(file, JSON.stringify(session, null, 2));
+  return file;
+}
+
 ipcMain.handle('games:launch', async (_e, id) => {
   const inst = readInstalled()[id];
   if (!inst) throw new Error('Game is not installed.');
   const exePath = path.join(inst.path, inst.exe);
   if (!fs.existsSync(exePath)) throw new Error('Game files are missing — reinstall the game.');
   if (runningGames.has(id)) throw new Error('Game is already running.');
-  const child = spawn(exePath, [], {
+  let sessionArgs = [];
+  try {
+    const sessionFile = await writeSessionManifest(id, inst);
+    sessionArgs = [`-VeldboomSession=${sessionFile}`];
+  } catch {
+    // Account link is best-effort — never block a launch on it.
+  }
+  const child = spawn(exePath, sessionArgs, {
     cwd: path.dirname(exePath),
     detached: true,
     stdio: 'ignore',
