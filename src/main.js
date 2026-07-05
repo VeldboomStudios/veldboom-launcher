@@ -337,6 +337,97 @@ ipcMain.handle('news:list', async () => {
   return manifest.news || [];
 });
 
+// --- DLC ---
+// A DLC is a private GitHub repo with releases. Buying (Stripe payment link) triggers a
+// webhook that invites the buyer's GitHub account to the repo; we auto-accept the invite
+// with their token, so paid DLC unlocks without keys or manual steps.
+
+async function acceptPendingInvites(fromOwner) {
+  if (!loadToken()) return 0;
+  try {
+    const res = await ghFetch('https://api.github.com/user/repository_invitations');
+    if (!res.ok) return 0;
+    const invites = await res.json();
+    let accepted = 0;
+    for (const inv of invites) {
+      const owner = inv.repository && inv.repository.owner ? inv.repository.owner.login : '';
+      if (fromOwner && owner.toLowerCase() !== fromOwner.toLowerCase()) continue;
+      const patch = await net.fetch(`https://api.github.com/user/repository_invitations/${inv.id}`, {
+        method: 'PATCH',
+        headers: {
+          'User-Agent': 'VeldboomLauncher',
+          Accept: 'application/vnd.github+json',
+          Authorization: `Bearer ${loadToken()}`,
+        },
+      });
+      if (patch.ok) accepted++;
+    }
+    return accepted;
+  } catch {
+    return 0;
+  }
+}
+
+ipcMain.handle('dlc:list', async (_e, gameId) => {
+  const manifest = await getManifest();
+  const game = (manifest.games || []).find((g) => g.id === gameId);
+  const dlcDefs = game && game.dlc ? game.dlc : [];
+  if (!dlcDefs.length) return { loggedIn: !!loadToken(), items: [] };
+
+  // Auto-accept any pending Veldboom invites first, so a fresh purchase unlocks right here.
+  await acceptPendingInvites('VeldboomStudios');
+
+  const installed = readInstalled();
+  const inst = installed[gameId] || {};
+  const ownedDlc = inst.dlc || {};
+  const items = await Promise.all(
+    dlcDefs.map(async (d) => {
+      const release = await latestRelease(d.repo);
+      let status = 'locked'; // not purchased (or not signed in)
+      if (release && ownedDlc[d.id]) {
+        status = ownedDlc[d.id].version === release.version ? 'installed' : 'update';
+      } else if (release) {
+        status = 'available'; // has access -> can install
+      }
+      return { ...d, latest: release, installedVersion: ownedDlc[d.id] ? ownedDlc[d.id].version : null, status };
+    })
+  );
+  return { loggedIn: !!loadToken(), items };
+});
+
+ipcMain.handle('dlc:buy', async (_e, { buyUrl }) => {
+  if (!/^https?:\/\//.test(buyUrl || '')) throw new Error('This DLC has no store link yet.');
+  // Attach the GitHub login so the payment webhook knows which account to unlock.
+  const u = await currentUser();
+  const url = new URL(buyUrl);
+  if (u) url.searchParams.set('client_reference_id', u.login);
+  shell.openExternal(url.toString());
+  return true;
+});
+
+ipcMain.handle('dlc:install', async (_e, { gameId, dlc }) => {
+  if (!dlc.latest) throw new Error('No release available for this DLC yet.');
+  const installed = readInstalled();
+  const inst = installed[gameId];
+  if (!inst) throw new Error('Install the game first — DLC files go into its folder.');
+
+  const progressId = `dlc:${dlc.id}`;
+  const zipPath = path.join(app.getPath('temp'), `${gameId}-${dlc.id}.zip`);
+  sendProgress(progressId, 'downloading', 0);
+  await downloadAsset(dlc.latest.assetUrl, zipPath, (p) => sendProgress(progressId, 'downloading', p));
+
+  sendProgress(progressId, 'installing', 1);
+  // DLC extracts into the game's install dir (packs ship paths relative to the game root).
+  await extract(zipPath, { dir: inst.path });
+  await fsp.rm(zipPath, { force: true });
+
+  inst.dlc = inst.dlc || {};
+  inst.dlc[dlc.id] = { version: dlc.latest.version };
+  writeInstalled(installed);
+  sendProgress(progressId, 'done', 1);
+  return true;
+});
+
 ipcMain.handle('games:uninstall', async (_e, id) => {
   const installed = readInstalled();
   const inst = installed[id];

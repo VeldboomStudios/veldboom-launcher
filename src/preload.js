@@ -18,4 +18,8 @@ contextBridge.exposeInMainWorld('launcher', {
 
   filesList: () => ipcRenderer.invoke('files:list'),
   fileDownload: (data) => ipcRenderer.invoke('files:download', data),
+
+  dlcList: (gameId) => ipcRenderer.invoke('dlc:list', gameId),
+  dlcBuy: (data) => ipcRenderer.invoke('dlc:buy', data),
+  dlcInstall: (data) => ipcRenderer.invoke('dlc:install', data),
 });

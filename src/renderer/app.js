@@ -173,6 +173,8 @@ function renderGrid() {
 function openDetail(id) {
   selectedId = id;
   renderDetail();
+  const game = games.find((g) => g.id === id);
+  if (game) loadDlc(game);
   overlay.classList.remove('hidden');
 }
 
@@ -269,6 +271,96 @@ function renderDetail() {
     addBtn('Install', 'btn-primary', () => installGame(game));
   } else {
     addBtn('Coming soon', 'btn-ghost', () => {}, true);
+  }
+}
+
+// --- DLC ---
+
+const dlcBusy = new Set();
+
+async function loadDlc(game) {
+  const wrap = document.getElementById('detail-dlc');
+  const list = document.getElementById('dlc-list');
+  if (!game.dlc || !game.dlc.length) { wrap.classList.add('hidden'); return; }
+  wrap.classList.remove('hidden');
+  list.innerHTML = '<div class="dlc-loading">Checking add-ons…</div>';
+  let data;
+  try {
+    data = await window.launcher.dlcList(game.id);
+  } catch {
+    list.innerHTML = '<div class="dlc-loading">Could not load add-ons.</div>';
+    return;
+  }
+  if (selectedId !== game.id) return; // user moved on
+  list.innerHTML = '';
+  for (const d of data.items) {
+    const row = document.createElement('div');
+    row.className = 'dlc-row';
+    row.innerHTML = `
+      <div class="dlc-meta">
+        <div class="dlc-title"></div>
+        <div class="dlc-desc"></div>
+      </div>
+      <div class="dlc-action"></div>`;
+    row.querySelector('.dlc-title').textContent = d.title;
+    row.querySelector('.dlc-desc').textContent = d.description || '';
+    const action = row.querySelector('.dlc-action');
+
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-small';
+    if (dlcBusy.has(d.id)) {
+      btn.className += ' btn-ghost';
+      btn.textContent = 'Working…';
+      btn.disabled = true;
+    } else if (d.status === 'installed') {
+      btn.className += ' btn-ghost';
+      btn.textContent = '✓ Installed';
+      btn.disabled = true;
+    } else if (d.status === 'update') {
+      btn.className += ' btn-primary';
+      btn.textContent = 'Update';
+      btn.addEventListener('click', () => installDlc(game, d, btn));
+    } else if (d.status === 'available') {
+      btn.className += ' btn-primary';
+      btn.textContent = 'Install';
+      btn.addEventListener('click', () => installDlc(game, d, btn));
+    } else if (!data.loggedIn) {
+      btn.className += ' btn-ghost';
+      btn.textContent = 'Sign in to buy';
+      btn.addEventListener('click', startLogin);
+    } else {
+      btn.className += ' btn-buy';
+      btn.textContent = d.price ? `Buy ${d.price}` : 'Buy';
+      btn.addEventListener('click', async () => {
+        try {
+          await window.launcher.dlcBuy({ buyUrl: d.buyUrl });
+          action.innerHTML = '<button class="btn btn-small btn-ghost" id="dlc-paid-refresh">I\'ve paid — refresh</button>';
+          action.querySelector('#dlc-paid-refresh').addEventListener('click', () => loadDlc(game));
+        } catch (err) {
+          showStatus(statusMessage, cleanError(err), true);
+        }
+      });
+    }
+    action.appendChild(btn);
+    list.appendChild(row);
+  }
+}
+
+async function installDlc(game, d, btn) {
+  dlcBusy.add(d.id);
+  btn.disabled = true;
+  const progressId = `dlc:${d.id}`;
+  fileProgressHandlers.set(progressId, (pct) => {
+    btn.textContent = `Downloading ${Math.round(pct * 100)}%`;
+  });
+  try {
+    await window.launcher.dlcInstall({ gameId: game.id, dlc: d });
+  } catch (err) {
+    showStatus(statusMessage, `DLC install failed: ${cleanError(err)}`, true);
+  } finally {
+    dlcBusy.delete(d.id);
+    fileProgressHandlers.delete(progressId);
+    loadDlc(game);
   }
 }
 

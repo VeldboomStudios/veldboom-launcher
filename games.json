@@ -15,7 +15,17 @@
       "description": "Replace this entry with your real game. The launcher shows 'Coming soon' until the repo below has a GitHub release with a .zip asset.",
       "image": "",
       "repo": "VeldboomStudios/example-game",
-      "exe": "MyFirstGame.exe"
+      "exe": "MyFirstGame.exe",
+      "dlc": [
+        {
+          "id": "example-dlc",
+          "title": "Example Expansion Pack",
+          "description": "Replace with a real add-on. repo = PRIVATE GitHub repo whose release zip extracts into the game folder; buyUrl = your Stripe payment link.",
+          "price": "€4,99",
+          "repo": "VeldboomStudios/example-dlc",
+          "buyUrl": ""
+        }
+      ]
     }
   ],
   "files": [
