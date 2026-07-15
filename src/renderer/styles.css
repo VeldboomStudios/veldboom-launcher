@@ -43,6 +43,8 @@ body {
   font-weight: 800; font-size: 20px;
 }
 
+.brand-mark img { width: 24px; height: 24px; object-fit: contain; }
+
 .brand-name { font-size: 13px; font-weight: 700; letter-spacing: 1px; line-height: 1.2; }
 .brand-name span { display: block; font-weight: 400; color: var(--text-dim); font-size: 10px; letter-spacing: 3px; }
 

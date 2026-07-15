@@ -566,6 +566,7 @@ function createWindow() {
     backgroundColor: '#0d0f14',
     autoHideMenuBar: true,
     title: 'Veldboom Launcher',
+    icon: path.join(__dirname, 'renderer', 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
