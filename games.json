@@ -13,7 +13,7 @@
       "id": "godspeed",
       "title": "GODSpeed",
       "description": "Race, build and grow on the solarpunk island of Eline. Drive the VS Lens and four tiers of Chaos-physics cars, race AI rivals that learn your lines, watch cinematic replays, buy land, build a sea-to-fuel industry chain and watch the island city grow around you.",
-      "image": "https://raw.githubusercontent.com/VeldboomStudios/godspeed-releases/main/hero.png",
+      "image": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/godspeed-hero.png",
       "repo": "VeldboomStudios/godspeed-releases",
       "exe": "Isle_Of_Eline.exe"
     }
