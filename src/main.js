@@ -86,12 +86,23 @@ async function latestRelease(repo) {
     const res = await ghFetch(`https://api.github.com/repos/${repo}/releases/latest`);
     if (!res.ok) return null;
     const rel = await res.json();
-    const asset = (rel.assets || []).find((a) => a.name.toLowerCase().endsWith('.zip'));
-    if (!asset) return null;
+    const assets = rel.assets || [];
+    // Builds over GitHub's 2 GiB asset limit ship as byte-split volumes
+    // (Game.zip.001, .002, ...) — concatenated in order they form one zip.
+    let zipAssets = assets
+      .filter((a) => /\.zip\.\d{3}$/i.test(a.name))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (!zipAssets.length) {
+      const single = assets.find((a) => a.name.toLowerCase().endsWith('.zip'));
+      if (!single) return null;
+      zipAssets = [single];
+    }
+    const toUrl = (a) => `https://api.github.com/repos/${repo}/releases/assets/${a.id}`;
     return {
       version: String(rel.tag_name || '').replace(/^v/i, ''),
-      assetUrl: `https://api.github.com/repos/${repo}/releases/assets/${asset.id}`,
-      size: asset.size,
+      assetUrl: toUrl(zipAssets[0]),
+      parts: zipAssets.map((a) => ({ assetUrl: toUrl(a), size: a.size || 0 })),
+      size: zipAssets.reduce((s, a) => s + (a.size || 0), 0),
       notes: rel.body || '',
     };
   } catch {
@@ -103,21 +114,32 @@ async function latestRelease(repo) {
 // private repos with the stored token; GitHub redirects to a short-lived
 // storage URL and fetch drops the Authorization header on the cross-origin hop.
 async function downloadAsset(assetUrl, dest, onProgress) {
-  const res = await ghFetch(assetUrl, { Accept: 'application/octet-stream' });
-  if (!res.ok) throw new Error(`Download failed (HTTP ${res.status})`);
-  const total = Number(res.headers.get('content-length')) || 0;
+  return downloadAssetParts([{ assetUrl, size: 0 }], dest, onProgress);
+}
+
+// Downloads one or more assets sequentially into a single file. Split-volume
+// releases (.zip.001, .002, ...) reassemble into the original zip this way.
+async function downloadAssetParts(parts, dest, onProgress) {
+  let totalAll = parts.reduce((s, p) => s + (p.size || 0), 0);
   const file = fs.createWriteStream(dest);
-  const reader = res.body.getReader();
   let received = 0;
   try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      received += value.length;
-      if (!file.write(Buffer.from(value))) {
-        await new Promise((r) => file.once('drain', r));
+    for (const part of parts) {
+      const res = await ghFetch(part.assetUrl, { Accept: 'application/octet-stream' });
+      if (!res.ok) throw new Error(`Download failed (HTTP ${res.status})`);
+      if (!part.size) {
+        totalAll += Number(res.headers.get('content-length')) || 0;
       }
-      if (onProgress) onProgress(total ? received / total : 0);
+      const reader = res.body.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += value.length;
+        if (!file.write(Buffer.from(value))) {
+          await new Promise((r) => file.once('drain', r));
+        }
+        if (onProgress) onProgress(totalAll ? received / totalAll : 0);
+      }
     }
     await new Promise((resolve, reject) => {
       file.on('error', reject);
@@ -274,7 +296,8 @@ ipcMain.handle('games:install', async (_e, game) => {
   let lastP = 0;
   let bps = 0;
   const total = game.latest.size || 0;
-  await downloadAsset(game.latest.assetUrl, zipPath, (p) => {
+  const parts = game.latest.parts || [{ assetUrl: game.latest.assetUrl, size: total }];
+  await downloadAssetParts(parts, zipPath, (p) => {
     const now = Date.now();
     if (now - lastT > 400) {
       bps = ((p - lastP) * total) / ((now - lastT) / 1000);
@@ -453,7 +476,8 @@ ipcMain.handle('dlc:install', async (_e, { gameId, dlc }) => {
   const progressId = `dlc:${dlc.id}`;
   const zipPath = path.join(app.getPath('temp'), `${gameId}-${dlc.id}.zip`);
   sendProgress(progressId, 'downloading', 0);
-  await downloadAsset(dlc.latest.assetUrl, zipPath, (p) => sendProgress(progressId, 'downloading', p));
+  const dlcParts = dlc.latest.parts || [{ assetUrl: dlc.latest.assetUrl, size: dlc.latest.size || 0 }];
+  await downloadAssetParts(dlcParts, zipPath, (p) => sendProgress(progressId, 'downloading', p));
 
   sendProgress(progressId, 'installing', 1);
   // DLC extracts into the game's install dir (packs ship paths relative to the game root).

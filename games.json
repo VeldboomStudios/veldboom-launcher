@@ -2,19 +2,19 @@
   "githubClientId": "Ov23li6jruARbX2fJaNC",
   "news": [
     {
-      "title": "Isle of Eline — racing update in the works",
-      "body": "AI rivals that drive your car, Gran Turismo-style performance points, race replays with a cinematic camera, a best-lap ghost and an online lap-time leaderboard are all coming to the island.",
+      "title": "GODSpeed — first playable build is here",
+      "body": "The first working build of GODSpeed is live in the launcher. Race and explore the solarpunk island of Eline: drive Chaos-physics cars against AI rivals, watch cinematic replays, buy land and build a sea-to-fuel industry chain while the island city grows around you.",
       "image": "",
       "url": ""
     }
   ],
   "games": [
     {
-      "id": "isle-of-eline",
-      "title": "Isle of Eline",
-      "description": "Race, build and grow on your own solarpunk island. Drive the VS Lens and four tiers of Chaos-physics cars, race AI rivals that learn your lines, watch cinematic replays, buy land, build a sea-to-fuel industry chain and watch the island city grow around you.",
-      "image": "https://raw.githubusercontent.com/VeldboomStudios/isle-of-eline-releases/main/hero.png",
-      "repo": "VeldboomStudios/isle-of-eline-releases",
+      "id": "godspeed",
+      "title": "GODSpeed",
+      "description": "Race, build and grow on the solarpunk island of Eline. Drive the VS Lens and four tiers of Chaos-physics cars, race AI rivals that learn your lines, watch cinematic replays, buy land, build a sea-to-fuel industry chain and watch the island city grow around you.",
+      "image": "https://raw.githubusercontent.com/VeldboomStudios/godspeed-releases/main/hero.png",
+      "repo": "VeldboomStudios/godspeed-releases",
       "exe": "Isle_Of_Eline.exe"
     }
   ],
