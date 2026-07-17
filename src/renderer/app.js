@@ -543,6 +543,39 @@ window.launcher.version().then((v) => {
   document.getElementById('launcher-version').textContent = `Launcher v${v}`;
 });
 
+const updateBanner = document.getElementById('update-banner');
+const updateLabel = document.getElementById('update-banner-label');
+const updateBar = updateBanner.querySelector('.update-banner-bar');
+const updateFill = document.getElementById('update-banner-fill');
+const updateRestartBtn = document.getElementById('update-restart-btn');
+
+window.launcher.onUpdaterStatus((data) => {
+  if (data.state === 'hidden') {
+    updateBanner.classList.add('hidden');
+    return;
+  }
+  updateBanner.classList.remove('hidden');
+  if (data.state === 'downloading') {
+    updateLabel.textContent = data.version
+      ? `Downloading update v${data.version}…`
+      : updateLabel.textContent;
+    if (typeof data.pct === 'number') {
+      updateBar.classList.remove('hidden');
+      updateFill.style.width = `${Math.round(data.pct)}%`;
+    }
+    updateRestartBtn.classList.add('hidden');
+  } else if (data.state === 'ready') {
+    updateLabel.textContent = `Update v${data.version} ready`;
+    updateBar.classList.add('hidden');
+    updateRestartBtn.classList.remove('hidden');
+  }
+});
+
+updateRestartBtn.addEventListener('click', () => {
+  updateRestartBtn.disabled = true;
+  window.launcher.updaterInstall();
+});
+
 window.launcher.authStatus().then((u) => {
   user = u;
   renderUser();

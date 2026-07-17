@@ -334,3 +334,36 @@ body {
   font-weight: 700;
 }
 .btn-buy:hover { filter: brightness(1.1); }
+
+/* --- launcher update banner --- */
+.update-banner {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 18px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  min-width: 280px;
+}
+.update-banner-text { flex: 1; }
+#update-banner-label { font-size: 13.5px; font-weight: 600; }
+.update-banner-bar {
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.update-banner-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}

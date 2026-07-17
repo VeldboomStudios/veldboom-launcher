@@ -576,6 +576,27 @@ function createWindow() {
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 }
 
+function sendUpdaterStatus(data) {
+  if (win && !win.isDestroyed()) win.webContents.send('updater:status', data);
+}
+
+autoUpdater.on('update-available', (info) => {
+  sendUpdaterStatus({ state: 'downloading', version: info.version });
+});
+autoUpdater.on('download-progress', (p) => {
+  sendUpdaterStatus({ state: 'downloading', pct: p.percent });
+});
+autoUpdater.on('update-downloaded', (info) => {
+  sendUpdaterStatus({ state: 'ready', version: info.version });
+});
+autoUpdater.on('error', () => {
+  sendUpdaterStatus({ state: 'hidden' });
+});
+
+ipcMain.handle('updater:install', () => {
+  autoUpdater.quitAndInstall();
+});
+
 app.whenReady().then(() => {
   createWindow();
   if (app.isPackaged) {

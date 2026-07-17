@@ -22,4 +22,7 @@ contextBridge.exposeInMainWorld('launcher', {
   dlcList: (gameId) => ipcRenderer.invoke('dlc:list', gameId),
   dlcBuy: (data) => ipcRenderer.invoke('dlc:buy', data),
   dlcInstall: (data) => ipcRenderer.invoke('dlc:install', data),
+
+  onUpdaterStatus: (cb) => ipcRenderer.on('updater:status', (_e, data) => cb(data)),
+  updaterInstall: () => ipcRenderer.invoke('updater:install'),
 });
