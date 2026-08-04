@@ -14,7 +14,9 @@ const { spawn } = require('node:child_process');
 const extract = require('extract-zip');
 const { autoUpdater } = require('electron-updater');
 
+// Set VELDBOOM_CATALOG to preview a catalog locally before publishing it.
 const MANIFEST_URL =
+  process.env.VELDBOOM_CATALOG ||
   'https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/games.json';
 const DEVICE_CODE_URL = 'https://github.com/login/device/code';
 const TOKEN_URL = 'https://github.com/login/oauth/access_token';
