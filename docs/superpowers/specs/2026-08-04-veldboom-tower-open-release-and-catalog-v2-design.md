@@ -288,14 +288,21 @@ solarpunk racing life-sim. Excluded from the launcher; they remain on the channe
 "17 July 2026", no description, no tags, 2m28s, 121 views. Not linked until it is either titled
 properly or unlisted. Contents unknown from metadata alone.
 
-#### Naming — needs a decision
+#### Naming — decided 2026-08-04
 
-The catalog says `GODSpeed`, the executable is `Isle_Of_Eline.exe`, and every video says *Isle of
-Eline*. Anyone arriving from YouTube searches for Eline and finds GODSpeed.
+**The game is GODSpeed. Eline and the Bijlmer are locations inside it.**
 
-Recommendation: **GODSpeed is the game, the Isle of Eline is the place it happens.** Title the entry
-`GODSpeed`, subtitle it *"on the Isle of Eline"*, and keep Eline in tags and video titles so search
-still lands. Requires sign-off before the catalog entry is written.
+The catalog already says `GODSpeed`; the executable is `Isle_Of_Eline.exe` and every video says
+*Isle of Eline*, so anyone arriving from YouTube searches for Eline.
+
+No subtitle. An earlier draft proposed *"on the Isle of Eline"*, which is now wrong: the **Bijlmer
+digital map is being added to the game**, so the world is more than one island and the title should
+not tie it to one. Keep Eline in tags, descriptions and video titles so existing search still lands,
+and treat locations as content rather than branding.
+
+Follow-on, not blocking: rename `Isle_Of_Eline.exe` at the next release so the executable matches the
+product. Changing it requires a matching `exe` field update in `games.json`, published together —
+otherwise installed clients cannot find the binary.
 
 #### Catalog entry
 
@@ -305,7 +312,6 @@ still lands. Requires sign-off before the catalog entry is written.
   "kind": "game",
   "access": "signin",
   "title": "GODSpeed",
-  "subtitle": "on the Isle of Eline",
   "image": "https://raw.githubusercontent.com/…/assets/godspeed-hero.jpg",
   "gallery": ["…/godspeed-terrace.jpg", "…/godspeed-garage.jpg"],
   "links": {
@@ -325,8 +331,18 @@ still lands. Requires sign-off before the catalog entry is written.
 
 - [ ] Native 4K stills from Unreal, no video compression: island aerial (hero), terrace/car, garage
       with vertical-farm signage
-- [ ] Decide Eline vs GODSpeed naming
 - [ ] Title or unlist `2UPK2WBOfH0`
+- [ ] Re-shoot the hero once the Bijlmer map is in — the current hero is an Eline aerial and will
+      under-sell a game that spans two places
+
+#### Bijlmer map
+
+The Bijlmer digital map is being added to GODSpeed as a second location. Two consequences here:
+
+1. **Copy and art will need revisiting.** The description and hero both currently describe an island.
+2. **Source needs confirming.** There are two Bijlmer assets in play — the Unreal digital twin, and
+   the Three.js / 3D BAG Amsterdamse Poort web map. Only the Unreal one drops into the game; the web
+   map would be an `experience` entry in the catalog (P4), not part of the game build.
 
 ### 4.6 Out of scope
 
