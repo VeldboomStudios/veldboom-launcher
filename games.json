@@ -20,10 +20,21 @@
   ],
   "files": [
     {
-      "id": "example-beta",
-      "title": "Example Beta Build",
-      "description": "Replace with a real gated download. Point repo at a PRIVATE repo — only GitHub users you invite as collaborators can see and download its release assets.",
-      "repo": "VeldboomStudios/example-private-files"
+      "id": "veldboom-tower",
+      "title": "De Veldboom — Vertical Farming Tower",
+      "description": "Print-ready STEP files for the De Veldboom vertical farming tower: tower body, planter cup, reservoir base, lid, rainhead, grow-light ring, sponge layer + bucket and sprout rack. Click the eye icon to inspect a part in 3D before downloading.",
+      "repo": "VeldboomStudios/veldboom-tower-files",
+      "previews": {
+        "Towerv3.STEP": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/parts/Towerv3.glb",
+        "Planter.step": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/parts/Planter.glb",
+        "base.STEP": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/parts/base.glb",
+        "LID.STEP": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/parts/LID.glb",
+        "rainhead2.STEP": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/parts/rainhead2.glb",
+        "DeVeldboomLightring.STEP": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/parts/DeVeldboomLightring.glb",
+        "DeVeldboomspongelayer.STEP": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/parts/DeVeldboomspongelayer.glb",
+        "DeVeldboomspongelayerbucket.STEP": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/parts/DeVeldboomspongelayerbucket.glb",
+        "sproutrack.STEP": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/parts/sproutrack.glb"
+      }
     }
   ]
 }

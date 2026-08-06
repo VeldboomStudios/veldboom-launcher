@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https:" />
   <title>Veldboom Launcher</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -87,6 +87,19 @@
     <button id="update-restart-btn" class="btn btn-primary btn-small hidden">Restart &amp; update</button>
   </div>
 
+  <div id="viewer-overlay" class="overlay hidden">
+    <div class="detail-card viewer-card">
+      <button id="viewer-close" class="detail-close">&times;</button>
+      <div class="viewer-header">
+        <h2 id="viewer-title">3D preview</h2>
+        <span class="viewer-hint">Drag to rotate · Scroll to zoom</span>
+      </div>
+      <div id="viewer-canvas-wrap" class="viewer-canvas-wrap">
+        <span id="viewer-status" class="viewer-status">Loading model…</span>
+      </div>
+    </div>
+  </div>
+
   <div id="login-overlay" class="overlay hidden">
     <div class="detail-card login-card">
       <button id="login-close" class="detail-close">&times;</button>
@@ -100,5 +113,14 @@
   </div>
 
   <script src="app.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.min.js",
+        "three/addons/": "./vendor/addons/"
+      }
+    }
+  </script>
+  <script type="module" src="viewer.js"></script>
 </body>
 </html>

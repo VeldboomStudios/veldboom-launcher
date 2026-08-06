@@ -433,10 +433,13 @@ function renderFiles() {
     let body;
     if (item.access) {
       const assetBtns = item.assets
-        .map(
-          (a, i) =>
-            `<button class="btn btn-primary btn-small" data-idx="${i}">&#x2193; ${a.name}${a.size ? ` (${fmtSize(a.size)})` : ''}</button>`
-        )
+        .map((a, i) => {
+          const preview = item.previews && item.previews[a.name];
+          const previewBtn = preview
+            ? `<button class="btn btn-ghost btn-small btn-preview" data-preview-idx="${i}" title="3D preview">&#x1f441;</button>`
+            : '';
+          return `<span class="asset-group">${previewBtn}<button class="btn btn-primary btn-small" data-idx="${i}">&#x2193; ${a.name}${a.size ? ` (${fmtSize(a.size)})` : ''}</button></span>`;
+        })
         .join('');
       body = `
         <div class="file-meta">
@@ -459,6 +462,14 @@ function renderFiles() {
     row.innerHTML = body;
     row.querySelector('.file-title').textContent = item.title;
     row.querySelector('.file-desc').textContent = item.description || '';
+
+    row.querySelectorAll('button[data-preview-idx]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const asset = item.assets[Number(btn.dataset.previewIdx)];
+        const url = item.previews[asset.name];
+        if (window.openPartPreview) window.openPartPreview(url, asset.name);
+      });
+    });
 
     row.querySelectorAll('button[data-idx]').forEach((btn) => {
       btn.addEventListener('click', async () => {
