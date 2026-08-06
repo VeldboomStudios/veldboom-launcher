@@ -1,6 +1,6 @@
 {
   "name": "veldboom-launcher",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Veldboom Studios game launcher — install, update and play Veldboom games",
   "main": "src/main.js",
   "author": "Veldboom Studios",
