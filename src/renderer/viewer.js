@@ -1,9 +1,9 @@
 // 3D part preview — renders a GLB model in an overlay so users can inspect a
 // part before downloading its CAD file. Exposed to app.js (classic script) as
 // window.openPartPreview(url, title).
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import * as THREE from './vendor/three.module.min.js';
+import { GLTFLoader } from './vendor/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from './vendor/addons/controls/OrbitControls.js';
 
 const overlay = document.getElementById('viewer-overlay');
 const titleEl = document.getElementById('viewer-title');
