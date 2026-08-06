@@ -559,6 +559,35 @@ ipcMain.handle('open:external', (_e, url) => {
   if (/^https?:\/\//.test(url)) shell.openExternal(url);
 });
 
+// Product videos open in their own launcher window rather than an <iframe>.
+// The renderer is loaded from file://, and YouTube's player refuses to run when
+// its parent origin is file:// — an embedded frame answers "error 152", and the
+// /embed/ page opened top-level answers "error 153" because it has no referrer.
+// The ordinary watch URL has a genuine origin and plays; Google shows its
+// cookie notice on first use, exactly as it would in a browser.
+let mediaWin = null;
+
+ipcMain.handle('media:play', (_e, { url, title }) => {
+  if (!/^https:\/\/www\.youtube\.com\/watch\?v=[\w-]+$/.test(url)) return false;
+  if (mediaWin && !mediaWin.isDestroyed()) {
+    mediaWin.loadURL(url);
+    mediaWin.focus();
+    return true;
+  }
+  mediaWin = new BrowserWindow({
+    width: 1000,
+    height: 640,
+    parent: win,
+    backgroundColor: '#000000',
+    autoHideMenuBar: true,
+    title: title || 'Veldboom Launcher',
+    webPreferences: { contextIsolation: true, nodeIntegration: false },
+  });
+  mediaWin.on('closed', () => { mediaWin = null; });
+  mediaWin.loadURL(url);
+  return true;
+});
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1280,

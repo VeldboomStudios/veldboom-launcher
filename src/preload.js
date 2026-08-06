@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('launcher', {
   launch: (id) => ipcRenderer.invoke('games:launch', id),
   uninstall: (id) => ipcRenderer.invoke('games:uninstall', id),
   openExternal: (url) => ipcRenderer.invoke('open:external', url),
+  playMedia: (data) => ipcRenderer.invoke('media:play', data),
   onProgress: (cb) => ipcRenderer.on('game:progress', (_e, data) => cb(data)),
   onRunning: (cb) => ipcRenderer.on('game:running', (_e, data) => cb(data)),
   listNews: () => ipcRenderer.invoke('news:list'),

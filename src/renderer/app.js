@@ -241,6 +241,68 @@ function productCard(item) {
 const productOverlay = document.getElementById('product-overlay');
 let productThumb = null;
 
+// --- Product media (build videos / posts) ---
+// Videos open in a launcher-owned window (see media:play in main.js); posts go
+// out to the browser, since Instagram cannot be embedded at all.
+
+function mediaThumb(item) {
+  if (item.thumb) return item.thumb;
+  if (item.type === 'youtube') return `https://i.ytimg.com/vi/${item.id}/mqdefault.jpg`;
+  return null;
+}
+
+function renderMedia(item) {
+  const wrap = document.getElementById('product-media');
+  const list = document.getElementById('product-media-list');
+  list.innerHTML = '';
+
+  // An entry with no link yet (e.g. a post whose URL we don't have) is skipped
+  // rather than rendered as a dead card.
+  const media = (item.media || []).filter(
+    (m) => (m.type === 'youtube' && m.id) || (m.type !== 'youtube' && m.url)
+  );
+  wrap.classList.toggle('hidden', media.length === 0);
+  if (!media.length) return;
+
+  for (const entry of media) {
+    const card = document.createElement('button');
+    card.className = `media-card media-${entry.type}`;
+    card.innerHTML = `
+      <span class="media-shot"><span class="media-play">&#9654;</span></span>
+      <span class="media-meta">
+        <span class="media-title"></span>
+        <span class="media-source"></span>
+      </span>`;
+    const shot = card.querySelector('.media-shot');
+    const thumb = mediaThumb(entry);
+    if (thumb) shot.style.backgroundImage = `url('${thumb}')`;
+    card.querySelector('.media-title').textContent = entry.title || '';
+    card.querySelector('.media-source').textContent =
+      entry.type === 'youtube' ? 'YouTube' : 'Instagram';
+
+    card.addEventListener('click', () => {
+      if (entry.type !== 'youtube') {
+        window.launcher.openExternal(entry.url);
+        return;
+      }
+      list.querySelectorAll('.media-card').forEach((c) => c.classList.remove('playing'));
+      card.classList.add('playing');
+      window.launcher.playMedia({
+        url: `https://www.youtube.com/watch?v=${entry.id}`,
+        title: entry.title,
+      });
+    });
+
+    list.appendChild(card);
+  }
+}
+
+function clearMediaSelection() {
+  document
+    .querySelectorAll('#product-media-list .media-card.playing')
+    .forEach((c) => c.classList.remove('playing'));
+}
+
 function openProduct(id) {
   const item = filesData.items.find((i) => i.id === id);
   if (!item) return;
@@ -257,6 +319,8 @@ function openProduct(id) {
   document.getElementById('product-meta').textContent = meta.join('  ·  ') || 'No release yet';
   document.getElementById('product-desc').textContent = item.description || '';
 
+  renderMedia(item);
+
   const parts = document.getElementById('product-parts');
   parts.innerHTML = '<h3>Parts</h3>';
   parts.appendChild(buildPartsTable(item));
@@ -272,6 +336,7 @@ function openProduct(id) {
 }
 
 function closeProduct() {
+  clearMediaSelection();
   productOverlay.classList.add('hidden');
   if (productThumb) productThumb.dispose();
   productThumb = null;
