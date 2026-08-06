@@ -22,10 +22,11 @@
     {
       "id": "veldboom-tower",
       "title": "De Veldboom — Vertical Farming Tower",
-      "description": "Print-ready STEP files for the De Veldboom vertical farming tower: tower body, planter cup, reservoir base, lid, rainhead, grow-light ring, sponge layer + bucket and sprout rack. Click the eye icon to inspect a part in 3D before downloading.",
+      "description": "Print-ready STEP files for the De Veldboom vertical farming tower: the 6-hole tower segment that screws into the base (Verticalfarmingdoublev9), planter cup, reservoir base, lid, rainhead, grow-light ring, sponge layer + bucket, sprout rack, plus the full tower assembly. Click the eye icon to inspect a part in 3D before downloading.",
       "repo": "VeldboomStudios/veldboom-tower-files",
       "previews": {
         "Towerv3.STEP": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/parts/Towerv3.glb",
+        "Verticalfarmingdoublev9.STEP": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/parts/Verticalfarmingdoublev9.glb",
         "Planter.step": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/parts/Planter.glb",
         "base.STEP": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/parts/base.glb",
         "LID.STEP": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/parts/LID.glb",
