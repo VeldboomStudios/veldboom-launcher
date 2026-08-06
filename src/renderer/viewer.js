@@ -138,3 +138,137 @@ overlay.addEventListener('click', (e) => {
   if (e.target === overlay) closeViewer();
 });
 window.addEventListener('resize', resize);
+
+// --- Turntable thumbnails ---
+// Small always-rotating canvases used as the cover art for product cards in the
+// library and as the hero of the product detail overlay. Kept separate from the
+// overlay viewer above: thumbnails share cached geometry, so they must never
+// dispose it.
+
+const modelCache = new Map(); // url -> Promise<THREE.Group>
+
+function loadModel(url) {
+  if (!modelCache.has(url)) {
+    modelCache.set(
+      url,
+      new Promise((resolve, reject) => {
+        loader.load(url, (gltf) => resolve(gltf.scene), undefined, reject);
+      })
+    );
+  }
+  return modelCache.get(url).then((root) => root.clone(true));
+}
+
+const PART_MATERIAL = { color: 0x8fbf6e, metalness: 0.1, roughness: 0.55 };
+
+window.mountPartThumb = (container, url, opts = {}) => {
+  const speed = opts.speed != null ? opts.speed : 0.35; // radians / second
+  const margin = opts.margin != null ? opts.margin : 1.05;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.domElement.className = 'thumb-canvas';
+  container.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(38, 1, 0.01, 1000);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+  const key = new THREE.DirectionalLight(0xffffff, 2.0);
+  key.position.set(3, 5, 4);
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0xbfd8ff, 0.7);
+  fill.position.set(-4, -2, -3);
+  scene.add(fill);
+
+  const pivot = new THREE.Group();
+  scene.add(pivot);
+
+  let model = null;
+  let raf = 0;
+  let disposed = false;
+  let last = 0;
+
+  function resize() {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    if (!w || !h) return false;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    return true;
+  }
+
+  // Frame the part for a turntable: it only spins around Y, so its height and
+  // its radius around that axis are both constant. Fitting those two keeps the
+  // part as large as possible without it clipping at any angle — a plain
+  // bounding-sphere fit would leave a tall part looking tiny.
+  function frame() {
+    if (!model) return;
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const radiusXZ = 0.5 * Math.hypot(size.x, size.z) || 1;
+
+    const fovV = (camera.fov * Math.PI) / 180;
+    const fovH = 2 * Math.atan(Math.tan(fovV / 2) * camera.aspect);
+    const dist =
+      Math.max(size.y * 0.5 / Math.tan(fovV / 2), radiusXZ / Math.sin(fovH / 2)) * margin;
+
+    const tilt = 0.1; // look very slightly down on the part
+    const reach = Math.max(size.y, radiusXZ * 2);
+    camera.near = Math.max(dist - reach, 0.01);
+    camera.far = dist + reach * 2;
+    camera.position.set(
+      center.x,
+      center.y + Math.sin(tilt) * dist,
+      center.z + Math.cos(tilt) * dist
+    );
+    camera.lookAt(center);
+    camera.updateProjectionMatrix();
+  }
+
+  const ro = new ResizeObserver(() => {
+    if (resize()) frame();
+  });
+  ro.observe(container);
+
+  function tick(now) {
+    if (disposed) return;
+    raf = requestAnimationFrame(tick);
+    pivot.rotation.y += ((now - last) / 1000) * speed;
+    last = now;
+    renderer.render(scene, camera);
+  }
+
+  loadModel(url)
+    .then((root) => {
+      if (disposed) return;
+      root.traverse((o) => {
+        if (o.isMesh) o.material = new THREE.MeshStandardMaterial(PART_MATERIAL);
+      });
+      const center = new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3());
+      root.position.sub(center); // spin around the part's own centre
+      model = root;
+      pivot.add(root);
+      resize();
+      frame();
+      container.classList.add('thumb-ready');
+      last = performance.now();
+      raf = requestAnimationFrame(tick);
+    })
+    .catch(() => {
+      if (!disposed) container.classList.add('thumb-failed');
+    });
+
+  return {
+    dispose() {
+      disposed = true;
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      renderer.dispose();
+      renderer.domElement.remove();
+    },
+  };
+};
+
+document.dispatchEvent(new Event('viewer-ready'));

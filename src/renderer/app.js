@@ -150,7 +150,8 @@ function fmtPlaytime(ms) {
 
 function renderGrid() {
   grid.innerHTML = '';
-  emptyState.classList.toggle('hidden', games.length > 0);
+  const products = filesData.items || [];
+  emptyState.classList.toggle('hidden', games.length + products.length > 0);
   for (const game of games) {
     const card = document.createElement('div');
     card.className = 'game-card';
@@ -168,7 +169,119 @@ function renderGrid() {
     card.addEventListener('click', () => openDetail(game.id));
     grid.appendChild(card);
   }
+  // Downloadable products (3D part sets) sit in the same catalog as the games.
+  for (const item of products) grid.appendChild(productCard(item));
 }
+
+// --- Products (3D file sets) in the library ---
+// Cards are cached so the turntable keeps spinning across the frequent
+// re-renders that download progress triggers.
+
+const productCards = new Map(); // id -> { el, badge, thumb }
+
+function coverUrlFor(item) {
+  if (item.cover) return item.cover;
+  const previews = item.previews ? Object.values(item.previews) : [];
+  return previews[0] || null;
+}
+
+function mountThumb(el, url, opts) {
+  if (window.mountPartThumb) return window.mountPartThumb(el, url, opts);
+  // viewer.js is a module, so it may still be loading on first paint.
+  const handle = {
+    disposed: false,
+    inner: null,
+    dispose() {
+      this.disposed = true;
+      if (this.inner) this.inner.dispose();
+    },
+  };
+  document.addEventListener(
+    'viewer-ready',
+    () => {
+      if (!handle.disposed) handle.inner = window.mountPartThumb(el, url, opts);
+    },
+    { once: true }
+  );
+  return handle;
+}
+
+function productCard(item) {
+  let entry = productCards.get(item.id);
+  if (!entry) {
+    const card = document.createElement('div');
+    card.className = 'game-card product-card';
+    card.innerHTML = `
+      <div class="game-cover product-cover"><span class="cover-chip">3D files</span></div>
+      <div class="game-info">
+        <div class="game-title"></div>
+        <span class="badge"></span>
+      </div>`;
+    card.querySelector('.game-title').textContent = item.title;
+    card.addEventListener('click', () => openProduct(item.id));
+    const url = coverUrlFor(item);
+    entry = {
+      el: card,
+      badge: card.querySelector('.badge'),
+      thumb: url ? mountThumb(card.querySelector('.product-cover'), url, { speed: 0.3 }) : null,
+    };
+    productCards.set(item.id, entry);
+  }
+  if (item.access) {
+    const count = groupParts(item).length;
+    entry.badge.className = 'badge available';
+    entry.badge.textContent = `${count} part${count === 1 ? '' : 's'}`;
+  } else {
+    entry.badge.className = 'badge coming_soon';
+    entry.badge.textContent = filesData.loggedIn ? 'No access' : 'Sign in to access';
+  }
+  return entry.el;
+}
+
+const productOverlay = document.getElementById('product-overlay');
+let productThumb = null;
+
+function openProduct(id) {
+  const item = filesData.items.find((i) => i.id === id);
+  if (!item) return;
+
+  document.getElementById('product-title').textContent = item.title;
+
+  const meta = [];
+  if (item.version) meta.push(`v${item.version}`);
+  if (item.access && item.assets.length) {
+    const count = groupParts(item).length;
+    meta.push(`${count} part${count === 1 ? '' : 's'}`);
+    meta.push(formatColumns(item).join(' / '));
+  }
+  document.getElementById('product-meta').textContent = meta.join('  ·  ') || 'No release yet';
+  document.getElementById('product-desc').textContent = item.description || '';
+
+  const parts = document.getElementById('product-parts');
+  parts.innerHTML = '<h3>Parts</h3>';
+  parts.appendChild(buildPartsTable(item));
+
+  const hero = document.getElementById('product-hero');
+  if (productThumb) productThumb.dispose();
+  productThumb = null;
+  hero.innerHTML = '';
+  const url = coverUrlFor(item);
+  if (url) productThumb = mountThumb(hero, url, { speed: 0.25 });
+
+  productOverlay.classList.remove('hidden');
+}
+
+function closeProduct() {
+  productOverlay.classList.add('hidden');
+  if (productThumb) productThumb.dispose();
+  productThumb = null;
+  document.getElementById('product-hero').innerHTML = '';
+}
+
+document.getElementById('product-close').addEventListener('click', closeProduct);
+productOverlay.addEventListener('click', (e) => {
+  if (e.target === productOverlay) closeProduct();
+});
 
 function openDetail(id) {
   selectedId = id;
@@ -420,6 +533,197 @@ function fmtSize(bytes) {
   return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb.toFixed(1)} MB`;
 }
 
+// A part is one physical thing that may ship in several formats (STEP, STL, …).
+// Release assets are flat, so group them by filename stem: Towerv3.STEP and
+// Towerv3.stl are one row with two download buttons, not two rows.
+const FORMAT_ORDER = ['STEP', 'STL', '3MF', 'OBJ'];
+
+function fileExt(name) {
+  const m = /\.([^.]+)$/.exec(name);
+  return m ? m[1].toUpperCase() : '';
+}
+
+function fileStem(name) {
+  return name.replace(/\.[^.]+$/, '');
+}
+
+function groupParts(item) {
+  const groups = new Map(); // lowercased stem -> group
+  for (const asset of item.assets) {
+    const stem = fileStem(asset.name);
+    const key = stem.toLowerCase();
+    if (!groups.has(key)) groups.set(key, { key, stem, formats: new Map() });
+    groups.get(key).formats.set(fileExt(asset.name) || '?', asset);
+  }
+  return [...groups.values()];
+}
+
+// Formats present across the whole product, in a stable column order.
+function formatColumns(item) {
+  const seen = new Set(item.assets.map((a) => fileExt(a.name) || '?'));
+  const known = FORMAT_ORDER.filter((f) => seen.has(f));
+  const rest = [...seen].filter((f) => !FORMAT_ORDER.includes(f)).sort();
+  return [...known, ...rest];
+}
+
+// Turn a CAD filename into something readable. The manifest can override any of
+// these with a `parts` map, keyed by stem ({ "Towerv3": "Tower body" }) or by
+// full filename.
+function prettyPart(filename) {
+  let n = filename
+    .replace(/\.[^.]+$/, '')
+    .replace(/^de[\s_-]?veldboom/i, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/([a-uw-zA-UW-Z])(\d)/g, '$1 $2')
+    .replace(/([a-z])v(\d)/gi, '$1 v$2')
+    .trim();
+  if (!n) n = filename;
+  n = n
+    .split(' ')
+    .map((w) => (w.length > 1 && /^[A-Z0-9]+$/.test(w) ? w[0] + w.slice(1).toLowerCase() : w))
+    .join(' ');
+  return n[0].toUpperCase() + n.slice(1);
+}
+
+function partLabel(item, group) {
+  const map = item.parts || {};
+  if (map[group.stem]) return map[group.stem];
+  for (const asset of group.formats.values()) {
+    if (map[asset.name]) return map[asset.name];
+  }
+  return prettyPart(group.stem);
+}
+
+function partPreview(item, group) {
+  const previews = item.previews || {};
+  for (const asset of group.formats.values()) {
+    if (previews[asset.name]) return previews[asset.name];
+  }
+  return previews[group.stem] || null;
+}
+
+async function downloadPart(asset) {
+  const progressId = `file:${asset.id}`;
+  const buttons = () => document.querySelectorAll(`[data-asset-btn="${asset.id}"]`);
+  buttons().forEach((b) => { b.disabled = true; });
+  fileProgressHandlers.set(progressId, (pct) => {
+    buttons().forEach((b) => { b.textContent = `Downloading ${Math.round(pct * 100)}%`; });
+  });
+  try {
+    const saved = await window.launcher.fileDownload({
+      url: asset.url,
+      name: asset.name,
+      progressId,
+    });
+    buttons().forEach((b) => {
+      b.innerHTML = saved ? '&#x2713; Downloaded' : '&#x2193; Download';
+      b.disabled = !!saved;
+    });
+  } catch (err) {
+    showStatus(document.getElementById('files-status'), `Download failed: ${cleanError(err)}`, true);
+    buttons().forEach((b) => {
+      b.innerHTML = '&#x2193; Download';
+      b.disabled = false;
+    });
+  } finally {
+    fileProgressHandlers.delete(progressId);
+  }
+}
+
+// One aligned table of parts — used by both the Files page and the product
+// detail overlay, so the two can never drift apart.
+function buildPartsTable(item) {
+  const wrap = document.createElement('div');
+  wrap.className = 'parts-table';
+
+  if (!item.access) {
+    const locked = document.createElement('div');
+    locked.className = 'parts-locked';
+    if (filesData.loggedIn) {
+      locked.textContent = '🔒 No access — contact Veldboom Studios';
+    } else {
+      locked.append('🔒 These files are private.');
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-primary btn-small';
+      btn.textContent = 'Sign in with GitHub';
+      btn.addEventListener('click', startLogin);
+      locked.appendChild(btn);
+    }
+    wrap.appendChild(locked);
+    return wrap;
+  }
+
+  if (!item.assets.length) {
+    const none = document.createElement('div');
+    none.className = 'parts-locked';
+    none.textContent = 'No files in the latest release.';
+    wrap.appendChild(none);
+    return wrap;
+  }
+
+  const columns = formatColumns(item);
+  // Part name takes the slack; then the preview button, then one column per format.
+  const template = `1fr 84px ${columns.map(() => '128px').join(' ')}`;
+
+  const head = document.createElement('div');
+  head.className = 'parts-head';
+  head.style.gridTemplateColumns = template;
+  head.innerHTML = `<span>Part</span><span></span>${columns
+    .map(() => '<span class="col-format"></span>')
+    .join('')}`;
+  head.querySelectorAll('.col-format').forEach((el, i) => { el.textContent = columns[i]; });
+  wrap.appendChild(head);
+
+  for (const group of groupParts(item)) {
+    const row = document.createElement('div');
+    row.className = 'part-row';
+    row.style.gridTemplateColumns = template;
+    row.innerHTML = `
+      <div class="part-name">
+        <span class="part-label"></span>
+        <span class="part-file"></span>
+      </div>
+      <div class="part-view"></div>`;
+    const label = partLabel(item, group);
+    row.querySelector('.part-label').textContent = label;
+    row.querySelector('.part-file').textContent = group.stem;
+
+    const previewUrl = partPreview(item, group);
+    const view = document.createElement('button');
+    view.className = 'btn btn-ghost btn-small btn-view';
+    view.innerHTML = '&#x1f441; View';
+    if (previewUrl) {
+      view.addEventListener('click', () => window.openPartPreview(previewUrl, label));
+    } else {
+      view.disabled = true;
+      view.title = 'No 3D preview for this part';
+    }
+    row.querySelector('.part-view').appendChild(view);
+
+    for (const format of columns) {
+      const cell = document.createElement('div');
+      cell.className = 'part-format';
+      const asset = group.formats.get(format);
+      if (asset) {
+        const dl = document.createElement('button');
+        dl.className = 'btn btn-primary btn-small btn-dl';
+        dl.dataset.assetBtn = asset.id;
+        dl.title = `Download ${asset.name}`;
+        dl.innerHTML = `&#x2193; ${asset.size ? fmtSize(asset.size) : format}`;
+        dl.addEventListener('click', () => downloadPart(asset));
+        cell.appendChild(dl);
+      } else {
+        cell.innerHTML = '<span class="part-missing">—</span>';
+      }
+      row.appendChild(cell);
+    }
+
+    wrap.appendChild(row);
+  }
+  return wrap;
+}
+
 function renderFiles() {
   const list = document.getElementById('files-list');
   const empty = document.getElementById('files-empty');
@@ -427,80 +731,35 @@ function renderFiles() {
   empty.classList.toggle('hidden', filesData.items.length > 0);
 
   for (const item of filesData.items) {
-    const row = document.createElement('div');
-    row.className = 'file-row';
+    const panel = document.createElement('section');
+    panel.className = 'file-panel';
+    panel.innerHTML = `
+      <header class="file-panel-head">
+        <div class="file-meta">
+          <div class="file-title"></div>
+          <div class="file-desc"></div>
+        </div>
+        <div class="file-tags"></div>
+      </header>`;
+    panel.querySelector('.file-title').textContent = item.title;
+    panel.querySelector('.file-desc').textContent = item.description || '';
 
-    let body;
-    if (item.access) {
-      const assetBtns = item.assets
-        .map((a, i) => {
-          const preview = item.previews && item.previews[a.name];
-          const previewBtn = preview
-            ? `<button class="btn btn-ghost btn-small btn-preview" data-preview-idx="${i}" title="3D preview">&#x1f441;</button>`
-            : '';
-          return `<span class="asset-group">${previewBtn}<button class="btn btn-primary btn-small" data-idx="${i}">&#x2193; ${a.name}${a.size ? ` (${fmtSize(a.size)})` : ''}</button></span>`;
-        })
-        .join('');
-      body = `
-        <div class="file-meta">
-          <div class="file-title"></div>
-          <div class="file-desc"></div>
-          ${item.version ? `<div class="file-version">v${item.version}</div>` : ''}
-        </div>
-        <div class="file-actions">${assetBtns || '<span class="file-locked">No files in latest release</span>'}</div>`;
-    } else {
-      const reason = filesData.loggedIn
-        ? '&#x1f512; No access — contact Veldboom Studios'
-        : '&#x1f512; Sign in to access';
-      body = `
-        <div class="file-meta">
-          <div class="file-title"></div>
-          <div class="file-desc"></div>
-        </div>
-        <div class="file-actions"><span class="file-locked">${reason}</span></div>`;
+    const tags = panel.querySelector('.file-tags');
+    const tag = (text) => {
+      const el = document.createElement('span');
+      el.className = 'file-tag';
+      el.textContent = text;
+      tags.appendChild(el);
+    };
+    if (item.version) tag(`v${item.version}`);
+    if (item.access && item.assets.length) {
+      const count = groupParts(item).length;
+      tag(`${count} part${count === 1 ? '' : 's'}`);
+      tag(formatColumns(item).join(' / '));
     }
-    row.innerHTML = body;
-    row.querySelector('.file-title').textContent = item.title;
-    row.querySelector('.file-desc').textContent = item.description || '';
 
-    row.querySelectorAll('button[data-preview-idx]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const asset = item.assets[Number(btn.dataset.previewIdx)];
-        const url = item.previews[asset.name];
-        if (window.openPartPreview) window.openPartPreview(url, asset.name);
-      });
-    });
-
-    row.querySelectorAll('button[data-idx]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const asset = item.assets[Number(btn.dataset.idx)];
-        const progressId = `file:${asset.id}`;
-        btn.disabled = true;
-        const original = btn.innerHTML;
-        const off = window.launcher.onProgress; // progress handled globally below
-        const update = (pct) => {
-          btn.textContent = `Downloading ${Math.round(pct * 100)}%`;
-        };
-        fileProgressHandlers.set(progressId, update);
-        try {
-          const saved = await window.launcher.fileDownload({
-            url: asset.url,
-            name: asset.name,
-            progressId,
-          });
-          btn.innerHTML = saved ? '&#x2713; Downloaded' : original;
-          if (!saved) btn.disabled = false;
-        } catch (err) {
-          showStatus(document.getElementById('files-status'), `Download failed: ${cleanError(err)}`, true);
-          btn.innerHTML = original;
-          btn.disabled = false;
-        } finally {
-          fileProgressHandlers.delete(progressId);
-        }
-      });
-    });
-
-    list.appendChild(row);
+    panel.appendChild(buildPartsTable(item));
+    list.appendChild(panel);
   }
 }
 
@@ -511,6 +770,7 @@ async function loadFiles() {
     document.getElementById('files-status').classList.add('hidden');
     filesData = await window.launcher.filesList();
     renderFiles();
+    renderGrid(); // products show up in the library too
   } catch (err) {
     showStatus(document.getElementById('files-status'), 'Could not load files list.', true);
   }
@@ -595,3 +855,4 @@ window.launcher.authStatus().then((u) => {
 renderUser();
 loadGames();
 loadNews();
+loadFiles(); // products are part of the library, so load them at start
