@@ -168,6 +168,20 @@ function findExe(dir, exeName) {
   return null;
 }
 
+// Catalogue `args` / `safeArgs` may be a list or one command-line string. Quoted
+// values stay in one piece so -ExecCmds="a, b" reaches the game intact.
+function normalizeArgs(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean).map(String);
+  return String(value).match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+}
+
+// Compatibility mode: drop the game to the D3D11 / SM5 renderer. The D3D12 SM6
+// path draws nothing on some integrated GPUs (Adreno on Windows-on-ARM), so the
+// scene is black while the interface still renders over it. A catalogue entry
+// can override this with its own `safeArgs`.
+const DEFAULT_SAFE_ARGS = ['-d3d11', '-sm5'];
+
 function sendProgress(id, phase, pct, extra = {}) {
   if (win && !win.isDestroyed()) {
     win.webContents.send('game:progress', { id, phase, pct, ...extra });
@@ -280,11 +294,20 @@ ipcMain.handle('games:list', async () => {
         status,
         playMs: inst ? inst.playMs || 0 : 0,
         lastPlayed: inst ? inst.lastPlayed || null : null,
+        safeMode: inst ? !!inst.safeMode : false,
         running: runningGames.has(g.id),
       };
     })
   );
   return games;
+});
+
+ipcMain.handle('games:setSafeMode', (_e, { id, enabled }) => {
+  const installed = readInstalled();
+  if (!installed[id]) throw new Error('Game is not installed.');
+  installed[id].safeMode = !!enabled;
+  writeInstalled(installed);
+  return installed[id].safeMode;
 });
 
 ipcMain.handle('games:install', async (_e, game) => {
@@ -328,7 +351,10 @@ ipcMain.handle('games:install', async (_e, game) => {
     // packaging — a cooked build keeps its config inside the pak, so there is no ini left on
     // disk to edit. Passing the map on the command line is the honest fix, and it belongs in
     // the catalogue rather than hard-coded here so a title can carry whatever it needs.
-    args: Array.isArray(game.args) ? game.args : [],
+    args: normalizeArgs(game.args),
+    safeArgs: normalizeArgs(game.safeArgs),
+    // A reinstall must not silently drop the player's compatibility choice.
+    safeMode: !!(installed[game.id] && installed[game.id].safeMode),
   };
   writeInstalled(installed);
   sendProgress(game.id, 'done', 1);
@@ -382,8 +408,24 @@ ipcMain.handle('games:launch', async (_e, id) => {
   }
   // Catalogue arguments first, then the session handle, so a title's own launch options
   // cannot be shadowed by ours. Older install records predate this field and have none.
-  const gameArgs = Array.isArray(inst.args) ? inst.args : [];
-  const child = spawn(exePath, [...gameArgs, ...sessionArgs], {
+  // Re-reading the catalogue here means a corrected argument reaches players who already
+  // installed the game; the stored copy is the offline fallback.
+  let gameArgs = normalizeArgs(inst.args);
+  let safeArgs = normalizeArgs(inst.safeArgs);
+  try {
+    const manifest = await getManifest();
+    const entry = (manifest.games || []).find((g) => g.id === id);
+    if (entry) {
+      if (entry.args !== undefined) gameArgs = normalizeArgs(entry.args);
+      if (entry.safeArgs !== undefined) safeArgs = normalizeArgs(entry.safeArgs);
+    }
+  } catch {
+    // Offline: the stored arguments stand.
+  }
+  if (!safeArgs.length) safeArgs = DEFAULT_SAFE_ARGS;
+
+  const args = [...gameArgs, ...(inst.safeMode ? safeArgs : []), ...sessionArgs];
+  const child = spawn(exePath, args, {
     cwd: path.dirname(exePath),
     detached: true,
     stdio: 'ignore',

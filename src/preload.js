@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('launcher', {
   install: (game) => ipcRenderer.invoke('games:install', game),
   launch: (id) => ipcRenderer.invoke('games:launch', id),
   uninstall: (id) => ipcRenderer.invoke('games:uninstall', id),
+  setSafeMode: (data) => ipcRenderer.invoke('games:setSafeMode', data),
   openExternal: (url) => ipcRenderer.invoke('open:external', url),
   playMedia: (data) => ipcRenderer.invoke('media:play', data),
   onProgress: (cb) => ipcRenderer.on('game:progress', (_e, data) => cb(data)),
