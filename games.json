@@ -16,6 +16,15 @@
       "image": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/godspeed-hero.jpg",
       "repo": "VeldboomStudios/godspeed-releases",
       "exe": "Isle_Of_Eline.exe"
+    },
+    {
+      "id": "vslens-configurator",
+      "title": "VS Lens Configurator",
+      "description": "Configure the VS Lens in the Veldboom factory showroom: both bodies, paints and finishes, wheels, and the aero kit piece by piece. Run the wind tunnel on whatever you have built — a solved airflow field you can probe with the smoke wand, with drag, downforce, balance and separation read off the car as you change it. Indicative pricing — not final.",
+      "image": "https://raw.githubusercontent.com/VeldboomStudios/veldboom-launcher/main/assets/vslens-hero.jpg",
+      "repo": "VeldboomStudios/vslens-configurator",
+      "exe": "Isle_Of_Eline.exe",
+      "args": ["/Game/VeldboomStudiosFactory", "-vslens", "-CustomConfig=Configurator"]
     }
   ],
   "files": [
