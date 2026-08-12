@@ -323,6 +323,12 @@ ipcMain.handle('games:install', async (_e, game) => {
     version: game.latest.version,
     path: dir,
     exe: path.relative(dir, exePath),
+    // Launch arguments from the catalogue. An Unreal build made out of a slice of a larger
+    // project still boots that project's default map, and the map cannot be changed after
+    // packaging — a cooked build keeps its config inside the pak, so there is no ini left on
+    // disk to edit. Passing the map on the command line is the honest fix, and it belongs in
+    // the catalogue rather than hard-coded here so a title can carry whatever it needs.
+    args: Array.isArray(game.args) ? game.args : [],
   };
   writeInstalled(installed);
   sendProgress(game.id, 'done', 1);
@@ -374,7 +380,10 @@ ipcMain.handle('games:launch', async (_e, id) => {
   } catch {
     // Account link is best-effort — never block a launch on it.
   }
-  const child = spawn(exePath, sessionArgs, {
+  // Catalogue arguments first, then the session handle, so a title's own launch options
+  // cannot be shadowed by ours. Older install records predate this field and have none.
+  const gameArgs = Array.isArray(inst.args) ? inst.args : [];
+  const child = spawn(exePath, [...gameArgs, ...sessionArgs], {
     cwd: path.dirname(exePath),
     detached: true,
     stdio: 'ignore',
