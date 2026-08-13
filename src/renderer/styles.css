@@ -167,7 +167,18 @@ body {
 .detail-version { color: var(--text-dim); font-size: 13px; margin-bottom: 14px; }
 #detail-desc { color: var(--text-dim); font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
 
-.detail-actions { display: flex; gap: 12px; }
+.detail-actions { display: flex; gap: 12px; align-items: center; }
+
+.safe-mode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.safe-mode:hover { color: var(--text); }
+.safe-mode input { accent-color: var(--accent); cursor: pointer; }
 
 .btn {
   padding: 11px 26px;

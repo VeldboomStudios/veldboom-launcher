@@ -442,14 +442,44 @@ function renderDetail() {
   if (game.status === 'installed') {
     addBtn('Play', 'btn-play', () => launchGame(game));
     addBtn('Uninstall', 'btn-ghost', () => uninstallGame(game));
+    addSafeMode(game);
   } else if (game.status === 'update') {
     addBtn('Update', 'btn-primary', () => installGame(game));
     addBtn('Play', 'btn-play', () => launchGame(game));
+    addSafeMode(game);
   } else if (game.status === 'available') {
     addBtn('Install', 'btn-primary', () => installGame(game));
   } else {
     addBtn('Coming soon', 'btn-ghost', () => {}, true);
   }
+}
+
+// Escape hatch for machines where the default renderer draws a black screen —
+// the game starts on the older, more widely supported one instead.
+function addSafeMode(game) {
+  const actions = document.getElementById('detail-actions');
+  const row = document.createElement('label');
+  row.className = 'safe-mode';
+
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.checked = !!game.safeMode;
+  box.addEventListener('change', async () => {
+    try {
+      await window.launcher.setSafeMode({ id: game.id, enabled: box.checked });
+      game.safeMode = box.checked;
+    } catch (err) {
+      box.checked = !box.checked;
+      showStatus(statusMessage, `Could not change compatibility mode: ${cleanError(err)}`, true);
+    }
+  });
+
+  const text = document.createElement('span');
+  text.textContent = 'Compatibility mode';
+  text.title = 'Start on the DirectX 11 renderer. Use this if the game opens with the interface visible but a black screen behind it. Lighting is simpler and the picture is darker.';
+
+  row.append(box, text);
+  actions.appendChild(row);
 }
 
 // --- DLC ---
