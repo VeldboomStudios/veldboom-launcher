@@ -72,7 +72,9 @@ The launcher signs in with a **GitHub App**, whose token can only read Veldboom 
 user already has access to — it can never touch the user's own repositories. Set it up
 once:
 
-1. **Create the app** — org Settings → Developer settings → GitHub Apps → **New GitHub App**.
+1. **Create the app** — <https://github.com/settings/apps/new> (Settings → Developer settings
+   → GitHub Apps → **New GitHub App**). Note `VeldboomStudios` is a **personal account, not
+   an organisation**, so this lives under your own settings — the `/organizations/…` URL 404s.
    - Homepage URL: the repo URL is fine. Leave the webhook **inactive**.
    - **Permissions → Repository → Contents: Read-only.** Nothing else.
      (Do *not* grant `Administration` — see [SECURITY.md](SECURITY.md) §4.)
