@@ -64,7 +64,54 @@ Access control = GitHub repo permissions:
 
 Users without access see the item locked; users with access get download buttons in the launcher's **Files** tab.
 
-Setup (one-time): create a GitHub OAuth App at Settings → Developer settings → OAuth Apps → New OAuth App, tick **Enable Device Flow**, then put the Client ID in `games.json` as `"githubClientId"`. Tokens are stored encrypted on the user's machine (Windows DPAPI via Electron safeStorage). Note: the `repo` OAuth scope grants read access to all repos the signed-in user can see — collaborators should be invited to dedicated content repos only, never to source repos.
+Tokens are stored encrypted on the user's machine (Windows DPAPI via Electron safeStorage).
+
+### Sign-in setup (GitHub App)
+
+The launcher signs in with a **GitHub App**, whose token can only read Veldboom repos the
+user already has access to — it can never touch the user's own repositories. Set it up
+once:
+
+1. **Create the app** — org Settings → Developer settings → GitHub Apps → **New GitHub App**.
+   - Homepage URL: the repo URL is fine. Leave the webhook **inactive**.
+   - **Permissions → Repository → Contents: Read-only.** Nothing else.
+     (Do *not* grant `Administration` — see [SECURITY.md](SECURITY.md) §4.)
+   - **Where can this app be installed?** Only on this account.
+2. **Enable the device flow** — in the app's settings, tick **Enable Device Flow**.
+   The launcher has no browser redirect, so this is required.
+3. **Turn off token expiry** — app settings → **Optional Features** →
+   **User-to-server token expiration** → **Opt-out**. This is not optional for us:
+   refreshing an expiring token needs the app's client secret, which a desktop app
+   cannot ship. Leave it on and users get signed out every 8 hours.
+4. **Install the app** on the `VeldboomStudios` account and grant it the content repos —
+   the game repos, `veldboom-tower-files`, and any future DLC repos.
+5. **Publish the Client ID** — copy the app's Client ID (starts `Iv23...`) into
+   `games.json`:
+   ```json
+   { "githubAppClientId": "Iv23liXXXXXXXXXXXX" }
+   ```
+   Push `games.json` to `main`. Launchers pick it up on next start — no launcher release
+   needed.
+
+Until step 5 is done, `githubAppClientId` stays `""` and the launcher falls back to the
+**legacy OAuth App** in `githubClientId`, which needs the `repo` scope (read *and write*
+on every repo the user can see). The sign-in screen warns the user when that fallback is
+active. Once the GitHub App is live, everyone signs in again once, and the old OAuth App
+can be deleted along with the `githubClientId` field.
+
+Access control is unchanged either way: a user reaches a gated repo only if they are a
+collaborator on it. One behaviour does change — pending invitations are no longer
+auto-accepted, so buyers accept the invite from GitHub's email or notifications. See
+[SECURITY.md](SECURITY.md) §4.
+
+## Privacy & security
+
+- [`PRIVACY.md`](PRIVACY.md) — what is stored (all of it local), what reaches GitHub and
+  Google, and what is never collected. Surfaced in-app under **Privacy & data**, which
+  also has a working **Delete my data** button.
+- [`SECURITY.md`](SECURITY.md) — reporting vulnerabilities and the known limitations.
+
+Both are linked from inside the launcher, so keep them on `main`.
 
 ## Website download link
 

@@ -21,6 +21,9 @@
         <div id="user-box" class="user-box">
           <button id="signin-btn" class="btn btn-primary btn-block">Sign in with GitHub</button>
         </div>
+        <div class="sidebar-links">
+          <button id="privacy-open" class="link-btn">Privacy &amp; data</button>
+        </div>
         <span id="launcher-version"></span>
       </div>
     </aside>
@@ -120,11 +123,55 @@
   <div id="login-overlay" class="overlay hidden">
     <div class="detail-card login-card">
       <button id="login-close" class="detail-close">&times;</button>
-      <div class="detail-body">
+
+      <div class="detail-body" id="login-consent">
+        <h2>Sign in with GitHub</h2>
+        <p class="login-hint">Before you continue, here is exactly what this gives the launcher.</p>
+        <div id="consent-warning" class="consent-warning hidden"></div>
+        <div class="consent-block">
+          <h3 class="consent-heading consent-yes">It will be able to</h3>
+          <ul id="consent-grants" class="consent-list"></ul>
+        </div>
+        <div class="consent-block" id="consent-cannot-block">
+          <h3 class="consent-heading consent-no">It will not be able to</h3>
+          <ul id="consent-cannot" class="consent-list"></ul>
+        </div>
+        <p class="login-hint consent-footnote">
+          Your sign-in stays on this computer, encrypted by Windows. Veldboom Studios runs no
+          server and receives nothing about you.
+          <button class="link-btn" id="consent-privacy-link">Read the privacy policy</button>
+        </p>
+        <div class="detail-actions">
+          <button id="consent-continue" class="btn btn-primary">Continue to GitHub</button>
+          <button id="consent-cancel" class="btn btn-ghost">Cancel</button>
+        </div>
+      </div>
+
+      <div class="detail-body hidden" id="login-code-step">
         <h2>Sign in with GitHub</h2>
         <p class="login-hint">A browser window has opened. Enter this code there to sign in:</p>
         <div id="login-code" class="login-code">····-····</div>
         <p id="login-status" class="login-status">Waiting for you to approve in the browser…</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="privacy-overlay" class="overlay hidden">
+    <div class="detail-card privacy-card">
+      <button id="privacy-close" class="detail-close">&times;</button>
+      <div class="detail-body">
+        <h2>Privacy &amp; your data</h2>
+        <p class="login-hint">
+          The launcher has no server and no analytics. Everything below is stored on this
+          computer only.
+        </p>
+        <div id="privacy-body" class="privacy-body">Loading…</div>
+        <div class="detail-actions">
+          <button id="privacy-policy-btn" class="btn btn-ghost">Privacy policy</button>
+          <button id="privacy-security-btn" class="btn btn-ghost">Security</button>
+          <button id="privacy-delete-btn" class="btn btn-danger">Delete my data</button>
+        </div>
+        <p id="privacy-delete-status" class="login-status hidden"></p>
       </div>
     </div>
   </div>

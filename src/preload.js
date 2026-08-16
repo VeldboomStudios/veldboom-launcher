@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld('launcher', {
   authStatus: () => ipcRenderer.invoke('auth:status'),
   authLogout: () => ipcRenderer.invoke('auth:logout'),
 
+  privacyGrant: () => ipcRenderer.invoke('privacy:grant'),
+  privacySummary: () => ipcRenderer.invoke('privacy:summary'),
+  privacyDeleteData: () => ipcRenderer.invoke('privacy:deleteData'),
+
   filesList: () => ipcRenderer.invoke('files:list'),
   fileDownload: (data) => ipcRenderer.invoke('files:download', data),
 

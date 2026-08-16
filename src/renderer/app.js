@@ -63,12 +63,48 @@ function renderUser() {
   }
 }
 
+// Sign-in is two steps on purpose: the user sees what the grant actually covers before
+// anything is sent to GitHub, rather than discovering it on GitHub's own consent page.
 async function startLogin() {
+  const consentStep = document.getElementById('login-consent');
+  const codeStep = document.getElementById('login-code-step');
+  consentStep.classList.remove('hidden');
+  codeStep.classList.add('hidden');
+  loginOverlay.classList.remove('hidden');
+
+  const grantsEl = document.getElementById('consent-grants');
+  const cannotEl = document.getElementById('consent-cannot');
+  const cannotBlock = document.getElementById('consent-cannot-block');
+  const warningEl = document.getElementById('consent-warning');
+  grantsEl.textContent = '';
+  cannotEl.textContent = '';
+
+  const info = await window.launcher.privacyGrant();
+  for (const line of info.grants) {
+    const li = document.createElement('li');
+    li.textContent = line;
+    grantsEl.appendChild(li);
+  }
+  for (const line of info.cannot) {
+    const li = document.createElement('li');
+    li.textContent = line;
+    cannotEl.appendChild(li);
+  }
+  cannotBlock.classList.toggle('hidden', !info.cannot.length);
+  warningEl.textContent = info.warning || '';
+  warningEl.classList.toggle('hidden', !info.warning);
+}
+
+async function runDeviceFlow() {
+  const consentStep = document.getElementById('login-consent');
+  const codeStep = document.getElementById('login-code-step');
   const codeEl = document.getElementById('login-code');
   const statusEl = document.getElementById('login-status');
+  consentStep.classList.add('hidden');
+  codeStep.classList.remove('hidden');
   codeEl.textContent = '····-····';
   statusEl.textContent = 'Contacting GitHub…';
-  loginOverlay.classList.remove('hidden');
+  statusEl.style.color = '';
   try {
     const d = await window.launcher.authStart();
     codeEl.textContent = d.userCode;
@@ -85,8 +121,155 @@ async function startLogin() {
   }
 }
 
+document.getElementById('consent-continue').addEventListener('click', runDeviceFlow);
+document.getElementById('consent-cancel').addEventListener('click', () => {
+  loginOverlay.classList.add('hidden');
+});
+document.getElementById('consent-privacy-link').addEventListener('click', () => {
+  loginOverlay.classList.add('hidden');
+  openPrivacy();
+});
+
 document.getElementById('login-close').addEventListener('click', () => {
   loginOverlay.classList.add('hidden');
+});
+
+// --- Privacy panel ---
+
+const privacyOverlay = document.getElementById('privacy-overlay');
+const POLICY_URL = 'https://github.com/VeldboomStudios/veldboom-launcher/blob/main/PRIVACY.md';
+const SECURITY_URL = 'https://github.com/VeldboomStudios/veldboom-launcher/blob/main/SECURITY.md';
+
+function formatBytes(n) {
+  if (!n) return '0 MB';
+  const mb = n / (1024 * 1024);
+  if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
+  return `${Math.max(1, Math.round(mb))} MB`;
+}
+
+function renderPrivacy(s) {
+  const body = document.getElementById('privacy-body');
+  body.textContent = '';
+
+  const section = (title) => {
+    const h = document.createElement('h3');
+    h.className = 'privacy-heading';
+    h.textContent = title;
+    body.appendChild(h);
+    const ul = document.createElement('ul');
+    ul.className = 'privacy-list';
+    body.appendChild(ul);
+    return ul;
+  };
+  const row = (ul, label, value) => {
+    const li = document.createElement('li');
+    const b = document.createElement('strong');
+    b.textContent = `${label}: `;
+    li.appendChild(b);
+    li.appendChild(document.createTextNode(value));
+    ul.appendChild(li);
+  };
+
+  const account = section('Account');
+  if (s.signedIn && s.account) {
+    row(account, 'Signed in as', `${s.account.name} (@${s.account.login})`);
+    row(
+      account,
+      'Sign-in type',
+      s.grant === 'github-app'
+        ? 'GitHub App — cannot touch your own repositories'
+        : 'Legacy OAuth App — grants the broad "repo" scope'
+    );
+  } else {
+    row(account, 'Signed in', 'No — the launcher works signed out for public games');
+  }
+
+  const stored = section('Stored on this computer');
+  const sl = s.storedLocally;
+  row(stored, 'Sign-in token', sl.tokenFile ? `Encrypted at ${sl.tokenFile}` : 'None stored');
+  row(
+    stored,
+    'Installed games',
+    sl.gameCount ? `${sl.gameCount} game(s), ${formatBytes(sl.gamesBytes)} in ${sl.gamesDir}` : 'None'
+  );
+  row(stored, 'Playtime', sl.playtimeTracked ? 'Recorded locally, never sent anywhere' : 'Nothing recorded');
+
+  const third = section('Who else sees anything');
+  for (const t of s.thirdParties) {
+    const li = document.createElement('li');
+    const b = document.createElement('strong');
+    b.textContent = `${t.name}: `;
+    li.appendChild(b);
+    li.appendChild(document.createTextNode(t.why + ' '));
+    const a = document.createElement('button');
+    a.className = 'link-btn';
+    a.textContent = 'Their policy';
+    a.addEventListener('click', () => window.launcher.openExternal(t.policy));
+    li.appendChild(a);
+    third.appendChild(li);
+  }
+
+  const none = section('Not collected');
+  row(none, 'Analytics or telemetry', 'None — the launcher sends no usage data at all');
+  row(none, 'AI features', 'None — the launcher contains no AI and sends nothing to any AI service');
+}
+
+async function openPrivacy() {
+  privacyOverlay.classList.remove('hidden');
+  document.getElementById('privacy-delete-status').classList.add('hidden');
+  document.getElementById('privacy-body').textContent = 'Loading…';
+  try {
+    renderPrivacy(await window.launcher.privacySummary());
+  } catch (err) {
+    document.getElementById('privacy-body').textContent = cleanError(err);
+  }
+}
+
+document.getElementById('privacy-open').addEventListener('click', openPrivacy);
+document.getElementById('privacy-close').addEventListener('click', () => {
+  privacyOverlay.classList.add('hidden');
+});
+document.getElementById('privacy-policy-btn').addEventListener('click', () => {
+  window.launcher.openExternal(POLICY_URL);
+});
+document.getElementById('privacy-security-btn').addEventListener('click', () => {
+  window.launcher.openExternal(SECURITY_URL);
+});
+
+document.getElementById('privacy-delete-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('privacy-delete-btn');
+  const statusEl = document.getElementById('privacy-delete-status');
+  statusEl.classList.remove('hidden');
+  statusEl.style.color = '';
+
+  if (btn.dataset.confirm !== 'yes') {
+    btn.dataset.confirm = 'yes';
+    btn.textContent = 'Really delete everything?';
+    statusEl.textContent =
+      'This signs you out and deletes every installed game and its saved playtime from this computer. Click again to confirm.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Deleting…';
+  try {
+    const { removed } = await window.launcher.privacyDeleteData();
+    user = null;
+    renderUser();
+    statusEl.textContent = removed.length
+      ? `Deleted: ${removed.join(', ')}.`
+      : 'Nothing was stored — there was nothing to delete.';
+    renderPrivacy(await window.launcher.privacySummary());
+    loadGames();
+    loadFiles();
+  } catch (err) {
+    statusEl.textContent = cleanError(err);
+    statusEl.style.color = '#ff6b6b';
+  } finally {
+    btn.disabled = false;
+    btn.dataset.confirm = '';
+    btn.textContent = 'Delete my data';
+  }
 });
 
 // --- Library (games) ---

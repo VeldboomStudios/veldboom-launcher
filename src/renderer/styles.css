@@ -614,3 +614,71 @@ body {
 }
 .product-parts .parts-head,
 .product-parts .part-row { gap: 8px; }
+
+/* Sign-in consent + privacy panel */
+.sidebar-links { margin-bottom: 8px; }
+
+.consent-warning {
+  background: rgba(255, 107, 107, 0.12);
+  border: 1px solid rgba(255, 107, 107, 0.4);
+  color: #ffb3b3;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 18px;
+}
+
+.consent-block { margin-bottom: 16px; }
+.consent-heading {
+  font-size: 11px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.consent-yes { color: var(--green); }
+.consent-no { color: var(--text-dim); }
+
+.consent-list { list-style: none; }
+.consent-list li {
+  position: relative;
+  padding-left: 20px;
+  margin-bottom: 7px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.consent-yes + .consent-list li::before { content: '✓'; color: var(--green); }
+.consent-no + .consent-list li::before { content: '✕'; color: var(--text-dim); }
+.consent-list li::before { position: absolute; left: 0; top: 0; }
+
+.consent-footnote { font-size: 12px; line-height: 1.6; margin-bottom: 18px; }
+.consent-footnote .link-btn { font-size: 12px; color: var(--accent); }
+.consent-footnote .link-btn:hover { color: var(--accent-hover); }
+
+.privacy-card { width: 620px; max-height: 82vh; overflow-y: auto; }
+.privacy-body { margin-bottom: 22px; }
+.privacy-heading {
+  font-size: 11px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 18px 0 8px;
+}
+.privacy-heading:first-child { margin-top: 0; }
+.privacy-list { list-style: none; }
+.privacy-list li {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  word-break: break-word;
+}
+.privacy-list li:last-child { border-bottom: none; }
+.privacy-list strong { color: var(--text); font-weight: 600; }
+.privacy-list .link-btn { font-size: 12px; color: var(--accent); }
+.privacy-list .link-btn:hover { color: var(--accent-hover); }
+
+.btn-danger { background: transparent; border: 1px solid rgba(255, 107, 107, 0.5); color: #ff6b6b; }
+.btn-danger:hover { background: rgba(255, 107, 107, 0.12); border-color: #ff6b6b; }

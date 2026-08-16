@@ -41,21 +41,45 @@ function writeInstalled(data) {
 }
 
 // --- Auth token storage (encrypted at rest via OS keychain / DPAPI) ---
+//
+// Stored shape is a JSON record so we can keep the grant kind and expiry next to
+// the token. Older builds wrote the bare token string; loadAuth() still reads those.
 
-function saveToken(token) {
+function saveAuth(record) {
   if (!safeStorage.isEncryptionAvailable()) {
     throw new Error('Secure storage is not available on this system.');
   }
   fs.mkdirSync(path.dirname(tokenFile()), { recursive: true });
-  fs.writeFileSync(tokenFile(), safeStorage.encryptString(token));
+  fs.writeFileSync(tokenFile(), safeStorage.encryptString(JSON.stringify(record)));
 }
 
-function loadToken() {
+function loadAuth() {
+  let raw;
   try {
-    return safeStorage.decryptString(fs.readFileSync(tokenFile()));
+    raw = safeStorage.decryptString(fs.readFileSync(tokenFile()));
   } catch {
     return null;
   }
+  // Legacy format: the file held nothing but the OAuth App token.
+  if (!raw.startsWith('{')) return { token: raw, kind: 'oauth-app', expiresAt: null };
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function loadToken() {
+  const auth = loadAuth();
+  if (!auth || !auth.token) return null;
+  // A GitHub App that still has user-to-server expiry switched on hands out 8-hour
+  // tokens. Refreshing one needs the app's client_secret, which a desktop app cannot
+  // hold — so an expired token is dropped and the user signs in again. See SECURITY.md.
+  if (auth.expiresAt && Date.now() >= auth.expiresAt) {
+    clearToken();
+    return null;
+  }
+  return auth.token;
 }
 
 function clearToken() {
@@ -194,10 +218,34 @@ async function currentUser() {
   return { login: u.login, name: u.name || u.login, avatar: u.avatar_url };
 }
 
+// Which GitHub identity the launcher signs in with.
+//
+// Preferred: a GitHub App (`githubAppClientId`). Its user-to-server token reaches only
+// the intersection of "repos the app installation covers" (VeldboomStudios content repos)
+// and "repos this user can read" — so it can never touch the user's own repositories,
+// and permissions come from the app registration rather than a scope string.
+//
+// Fallback: the original OAuth App (`githubClientId`), which needs the `repo` scope —
+// read AND write on every repo the user can see. Kept only so sign-in keeps working
+// until the GitHub App is live; the launcher tells the user which one is in use.
+function authClient(manifest) {
+  if (manifest.githubAppClientId) {
+    return { clientId: manifest.githubAppClientId, kind: 'github-app' };
+  }
+  if (manifest.githubClientId) {
+    return { clientId: manifest.githubClientId, kind: 'oauth-app' };
+  }
+  return null;
+}
+
 ipcMain.handle('auth:start', async () => {
   const manifest = await getManifest();
-  const clientId = manifest.githubClientId;
-  if (!clientId) throw new Error('Sign-in is not configured yet. Try again later.');
+  const client = authClient(manifest);
+  if (!client) throw new Error('Sign-in is not configured yet. Try again later.');
+  const body = { client_id: client.clientId };
+  // GitHub Apps derive access from their registered permissions; sending a scope here
+  // is what produced the over-broad `repo` grant, so only the legacy path sets it.
+  if (client.kind === 'oauth-app') body.scope = 'repo';
   const res = await net.fetch(DEVICE_CODE_URL, {
     method: 'POST',
     headers: {
@@ -205,7 +253,7 @@ ipcMain.handle('auth:start', async () => {
       Accept: 'application/json',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ client_id: clientId, scope: 'repo' }),
+    body: JSON.stringify(body),
   });
   const d = await res.json();
   if (!d.device_code) throw new Error(d.error_description || 'Could not start sign-in.');
@@ -215,12 +263,15 @@ ipcMain.handle('auth:start', async () => {
     verificationUri: d.verification_uri,
     deviceCode: d.device_code,
     interval: d.interval || 5,
+    grant: client.kind,
   };
 });
 
 ipcMain.handle('auth:poll', async (_e, { deviceCode, interval }) => {
   const manifest = await getManifest();
-  const clientId = manifest.githubClientId;
+  const client = authClient(manifest);
+  if (!client) throw new Error('Sign-in is not configured yet. Try again later.');
+  const clientId = client.clientId;
   const deadline = Date.now() + 15 * 60 * 1000;
   let waitMs = Math.max(interval || 5, 5) * 1000;
   while (Date.now() < deadline) {
@@ -240,7 +291,15 @@ ipcMain.handle('auth:poll', async (_e, { deviceCode, interval }) => {
     });
     const d = await res.json();
     if (d.access_token) {
-      saveToken(d.access_token);
+      // `expires_in` only comes back when the GitHub App still has user-to-server token
+      // expiry enabled. We record it so an expired token is dropped cleanly instead of
+      // failing every API call 8 hours later — but the fix is to opt out of expiry
+      // (see README), because refreshing needs a client_secret we cannot ship.
+      saveAuth({
+        token: d.access_token,
+        kind: client.kind,
+        expiresAt: d.expires_in ? Date.now() + Number(d.expires_in) * 1000 : null,
+      });
       return currentUser();
     }
     if (d.error === 'authorization_pending') continue;
@@ -258,6 +317,138 @@ ipcMain.handle('auth:status', () => currentUser());
 ipcMain.handle('auth:logout', () => {
   clearToken();
   return true;
+});
+
+// --- Privacy / transparency IPC ---
+//
+// Everything the launcher knows about a user lives on their own machine; there is no
+// Veldboom server and no analytics. These handlers let the app show that honestly and
+// let the user erase it (GDPR art. 15 access / art. 17 erasure, exercised locally).
+
+function dirSize(dir) {
+  let total = 0;
+  const stack = [dir];
+  while (stack.length) {
+    const current = stack.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) stack.push(full);
+      else {
+        try {
+          total += fs.statSync(full).size;
+        } catch {
+          // vanished mid-walk — ignore
+        }
+      }
+    }
+  }
+  return total;
+}
+
+// What signing in actually grants, in the user's words. Shown before they sign in.
+function grantInfo(kind) {
+  if (kind === 'github-app') {
+    return {
+      grant: 'github-app',
+      title: 'Veldboom Launcher (GitHub App)',
+      grants: [
+        'Read your GitHub username, display name and avatar.',
+        'Read releases and download files from Veldboom Studios repositories you already have access to.',
+      ],
+      cannot: [
+        'It cannot read, write or delete any of your own repositories.',
+        'It cannot post, comment or act as you anywhere on GitHub.',
+      ],
+      warning: null,
+    };
+  }
+  return {
+    grant: 'oauth-app',
+    title: 'Veldboom Launcher (legacy OAuth App)',
+    grants: [
+      'Read your GitHub username, display name and avatar.',
+      'Read releases and download files from Veldboom Studios repositories you have access to.',
+    ],
+    cannot: [],
+    warning:
+      'This legacy sign-in asks GitHub for the "repo" scope, which grants read AND write access to every repository your account can see — far more than the launcher needs. Only sign in if you accept that.',
+  };
+}
+
+ipcMain.handle('privacy:grant', async () => {
+  try {
+    const manifest = await getManifest();
+    const client = authClient(manifest);
+    return grantInfo(client ? client.kind : 'github-app');
+  } catch {
+    // Offline: describe the intended grant rather than blocking the dialog.
+    return grantInfo('github-app');
+  }
+});
+
+ipcMain.handle('privacy:summary', async () => {
+  const installed = readInstalled();
+  // loadToken() first: it prunes an expired token, so loadAuth() below cannot report
+  // "signed in" for a grant that every other call site already treats as gone.
+  const hasToken = !!loadToken();
+  const auth = hasToken ? loadAuth() : null;
+  let account = null;
+  try {
+    account = await currentUser();
+  } catch {
+    // offline — the local record below still tells the truth
+  }
+  return {
+    signedIn: !!auth,
+    grant: auth ? auth.kind : null,
+    account: account ? { login: account.login, name: account.name } : null,
+    storedLocally: {
+      tokenFile: fs.existsSync(tokenFile()) ? tokenFile() : null,
+      installedFile: fs.existsSync(installedFile()) ? installedFile() : null,
+      gamesDir: fs.existsSync(gamesDir()) ? gamesDir() : null,
+      gamesBytes: fs.existsSync(gamesDir()) ? dirSize(gamesDir()) : 0,
+      gameCount: Object.keys(installed).length,
+      playtimeTracked: Object.values(installed).some((i) => i && i.playMs),
+    },
+    thirdParties: [
+      {
+        name: 'GitHub, Inc.',
+        why: 'Hosts the catalog, the game and file downloads, and the sign-in. Receives your IP address, and your GitHub identity once you sign in.',
+        policy: 'https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement',
+      },
+      {
+        name: 'Google (YouTube)',
+        why: 'Only if you open a product video or its thumbnail loads. Receives your IP address and YouTube cookies, exactly as visiting youtube.com would.',
+        policy: 'https://policies.google.com/privacy',
+      },
+    ],
+    noAnalytics: true,
+  };
+});
+
+// Erasure: drop the token, the install records and every installed game (which also
+// removes the veldboom_session.json written next to each game at launch).
+ipcMain.handle('privacy:deleteData', async () => {
+  const removed = [];
+  if (fs.existsSync(tokenFile())) {
+    clearToken();
+    removed.push('Sign-in token');
+  }
+  if (fs.existsSync(installedFile())) {
+    await fsp.rm(installedFile(), { force: true });
+    removed.push('Install records and playtime');
+  }
+  if (fs.existsSync(gamesDir())) {
+    await fsp.rm(gamesDir(), { recursive: true, force: true });
+    removed.push('Installed game files');
+  }
+  return { removed };
 });
 
 // --- Games IPC ---
@@ -415,6 +606,10 @@ ipcMain.handle('news:list', async () => {
 // webhook that invites the buyer's GitHub account to the repo; we auto-accept the invite
 // with their token, so paid DLC unlocks without keys or manual steps.
 
+// Best-effort. Under the GitHub App grant the /user/repository_invitations endpoints sit
+// behind the "Administration" permission, which the launcher deliberately does not ask
+// for — so this quietly returns 0 and the buyer accepts the invite from GitHub's own
+// email/notification instead. Never block a purchase on it.
 async function acceptPendingInvites(fromOwner) {
   if (!loadToken()) return 0;
   try {
