@@ -3,6 +3,12 @@
   "githubClientId": "Ov23li6jruARbX2fJaNC",
   "news": [
     {
+      "title": "GODSpeed 0.3.4 — your graphics settings back",
+      "body": "Since 0.3.0 the first-boot hardware check read an unbenchmarked GPU score as a weak GPU and put every machine on the low-spec floor — Low settings, 60% resolution, no Lumen — desktops with a real graphics card included. 0.3.4 reads the real benchmark, re-detects once on your next launch and hands you the levels your hardware earns. Snapdragon laptops keep the 0.3.3 floor. The VS Lens spec room now carries an overhead softbox so the car stays lit when Lumen is off.",
+      "image": "",
+      "url": "https://github.com/VeldboomStudios/godspeed-releases/releases/tag/v0.3.4"
+    },
+    {
       "title": "VS Lens Configurator 1.1.0 — runs on the laptop",
       "body": "The showroom now fits the machine it opens on. Snapdragon X laptops get a tuned floor on first launch (Low, half resolution, no Lumen, 30 fps); desktops keep the benchmark's own levels and the F1 cycle. The factory hall is lit by Lumen bounce, so at Low it used to go black — an overhead softbox on the rig now switches on whenever Lumen is off. Also fixed: an unbenchmarked GPU score was read as a weak GPU. Indicative pricing — not final.",
       "image": "",
