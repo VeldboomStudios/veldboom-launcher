@@ -3,6 +3,12 @@
   "githubClientId": "Ov23li6jruARbX2fJaNC",
   "news": [
     {
+      "title": "GODSpeed 0.3.3 — runs on the laptop",
+      "body": "Laptops with a Snapdragon X chip (Galaxy Book4 Edge and friends) are recognised on first launch and get a tuned floor: Low settings, half resolution upscaled, no Lumen, no virtual shadow maps, card hair, a tighter streaming ring and a 30 fps cap. The VS Lens configurator uses the same floor. Desktops are untouched. This build still runs through Windows' x64 emulation on those machines; a native ARM64 build is the next step.",
+      "image": "",
+      "url": "https://github.com/VeldboomStudios/godspeed-releases/releases/tag/v0.3.3"
+    },
+    {
       "title": "GODSpeed 0.3.2 — the wardrobe is yours",
       "body": "The mirror no longer swaps you for a stranger: LilGrio keeps his face, hair and beard, and the full customizable wardrobe is back on the card. Twelve face sliders shape Grio himself — nose, jaw, chin, cheekbones, lips, mouth, eyes, brow, ears — and are saved with your profile. He wakes up undressed every morning with his hair and colour remembered. The mirror has its own camera with a zoom that stays put, and hair colour presets. Animals that attack while you drive damage the car, not you, and shove it instead of climbing on the roof. VS Lens body panels shade smoothly again.",
       "image": "",
