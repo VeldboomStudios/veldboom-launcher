@@ -3,6 +3,12 @@
   "githubClientId": "Ov23li6jruARbX2fJaNC",
   "news": [
     {
+      "title": "VS Lens Configurator 1.1.0 — runs on the laptop",
+      "body": "The showroom now fits the machine it opens on. Snapdragon X laptops get a tuned floor on first launch (Low, half resolution, no Lumen, 30 fps); desktops keep the benchmark's own levels and the F1 cycle. The factory hall is lit by Lumen bounce, so at Low it used to go black — an overhead softbox on the rig now switches on whenever Lumen is off. Also fixed: an unbenchmarked GPU score was read as a weak GPU. Indicative pricing — not final.",
+      "image": "",
+      "url": "https://github.com/VeldboomStudios/vslens-configurator/releases/tag/v1.1.0"
+    },
+    {
       "title": "GODSpeed 0.3.3 — runs on the laptop",
       "body": "Laptops with a Snapdragon X chip (Galaxy Book4 Edge and friends) are recognised on first launch and get a tuned floor: Low settings, half resolution upscaled, no Lumen, no virtual shadow maps, card hair, a tighter streaming ring and a 30 fps cap. The VS Lens configurator uses the same floor. Desktops are untouched. This build still runs through Windows' x64 emulation on those machines; a native ARM64 build is the next step.",
       "image": "",
