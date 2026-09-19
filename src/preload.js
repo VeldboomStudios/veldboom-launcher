@@ -30,4 +30,8 @@ contextBridge.exposeInMainWorld('launcher', {
 
   onUpdaterStatus: (cb) => ipcRenderer.on('updater:status', (_e, data) => cb(data)),
   updaterInstall: () => ipcRenderer.invoke('updater:install'),
+
+  telemetryGet: () => ipcRenderer.invoke('telemetry:get'),
+  telemetrySetConsent: (consent) => ipcRenderer.invoke('telemetry:setConsent', consent),
+  feedbackSend: (data) => ipcRenderer.invoke('feedback:send', data),
 });

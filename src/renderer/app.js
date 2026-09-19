@@ -192,7 +192,15 @@ function renderPrivacy(s) {
     'Installed games',
     sl.gameCount ? `${sl.gameCount} game(s), ${formatBytes(sl.gamesBytes)} in ${sl.gamesDir}` : 'None'
   );
-  row(stored, 'Playtime', sl.playtimeTracked ? 'Recorded locally, never sent anywhere' : 'Nothing recorded');
+  row(
+    stored,
+    'Playtime',
+    sl.playtimeTracked
+      ? s.telemetry === true
+        ? 'Recorded locally; session lengths are shared as anonymous usage stats (see below)'
+        : 'Recorded locally, never sent anywhere'
+      : 'Nothing recorded'
+  );
 
   const third = section('Who else sees anything');
   for (const t of s.thirdParties) {
@@ -209,8 +217,30 @@ function renderPrivacy(s) {
     third.appendChild(li);
   }
 
+  const stats = section('Usage statistics (optional)');
+  const statsLi = document.createElement('li');
+  const statsB = document.createElement('strong');
+  statsB.textContent = 'Anonymous usage stats: ';
+  statsLi.appendChild(statsB);
+  statsLi.appendChild(
+    document.createTextNode(
+      s.telemetry === true
+        ? 'ON — install/launch events, playtime, launcher version and country, under a random ID. Never your name, GitHub account, IP address or files. '
+        : 'OFF — nothing is sent. '
+    )
+  );
+  const toggle = document.createElement('button');
+  toggle.className = 'link-btn';
+  toggle.textContent = s.telemetry === true ? 'Turn off (deletes the ID)' : 'Turn on';
+  toggle.addEventListener('click', async () => {
+    await window.launcher.telemetrySetConsent(s.telemetry !== true);
+    renderPrivacy(await window.launcher.privacySummary());
+  });
+  statsLi.appendChild(toggle);
+  stats.appendChild(statsLi);
+
   const none = section('Not collected');
-  row(none, 'Analytics or telemetry', 'None — the launcher sends no usage data at all');
+  row(none, 'Browsing or personal data', 'No IP addresses stored, no file contents, no GitHub identity in usage stats');
   row(none, 'AI features', 'None — the launcher contains no AI and sends nothing to any AI service');
 }
 
@@ -269,6 +299,59 @@ document.getElementById('privacy-delete-btn').addEventListener('click', async ()
     btn.disabled = false;
     btn.dataset.confirm = '';
     btn.textContent = 'Delete my data';
+  }
+});
+
+// --- Usage-stats consent (first run) + feedback ---
+
+(async () => {
+  try {
+    const { consent } = await window.launcher.telemetryGet();
+    if (consent === null || consent === undefined) {
+      document.getElementById('consent-overlay').classList.remove('hidden');
+    }
+  } catch {
+    // never block startup on this
+  }
+})();
+
+document.getElementById('consent-yes').addEventListener('click', async () => {
+  await window.launcher.telemetrySetConsent(true);
+  document.getElementById('consent-overlay').classList.add('hidden');
+});
+document.getElementById('consent-no').addEventListener('click', async () => {
+  await window.launcher.telemetrySetConsent(false);
+  document.getElementById('consent-overlay').classList.add('hidden');
+});
+
+const feedbackOverlay = document.getElementById('feedback-overlay');
+document.getElementById('feedback-open').addEventListener('click', () => {
+  document.getElementById('feedback-status').classList.add('hidden');
+  feedbackOverlay.classList.remove('hidden');
+});
+document.getElementById('feedback-close').addEventListener('click', () => {
+  feedbackOverlay.classList.add('hidden');
+});
+document.getElementById('feedback-send').addEventListener('click', async () => {
+  const btn = document.getElementById('feedback-send');
+  const statusEl = document.getElementById('feedback-status');
+  statusEl.classList.remove('hidden');
+  statusEl.style.color = '';
+  btn.disabled = true;
+  statusEl.textContent = 'Sending…';
+  try {
+    await window.launcher.feedbackSend({
+      message: document.getElementById('feedback-text').value,
+      contact: document.getElementById('feedback-contact').value,
+    });
+    statusEl.textContent = 'Sent — thank you!';
+    document.getElementById('feedback-text').value = '';
+    setTimeout(() => feedbackOverlay.classList.add('hidden'), 1200);
+  } catch (err) {
+    statusEl.textContent = cleanError(err);
+    statusEl.style.color = '#ff6b6b';
+  } finally {
+    btn.disabled = false;
   }
 });
 

@@ -1,6 +1,6 @@
 # Privacy Policy — Veldboom Launcher
 
-**Last updated:** 16 August 2026
+**Last updated:** 19 September 2026 (v1.8.0: optional anonymous usage statistics and a feedback form)
 
 This policy covers the **Veldboom Launcher** desktop application. Games installed through
 the launcher are separate programs and may have their own policies.
@@ -14,13 +14,13 @@ Because Veldboom Studios is established in the EU, this policy follows the **GDP
 
 ## The short version
 
-The launcher has **no server**. Veldboom Studios operates no backend, no account
-database and no analytics, and therefore **receives no personal data about you from the
-launcher at all**. Everything the launcher knows about you is stored on your own
-computer, and you can erase it from inside the app at any time.
+By default the launcher sends **nothing** to Veldboom Studios. Everything it knows about
+you is stored on your own computer, and you can erase it from inside the app at any time.
 
-What follows explains the parts where that is not the whole story — namely GitHub, which
-hosts the downloads and the sign-in.
+There are exactly two ways data reaches Veldboom Studios, and both are your choice:
+**anonymous usage statistics** (off until you switch them on) and the **feedback form**
+(only sends what you type). What follows explains those, plus GitHub, which hosts the
+downloads and the sign-in.
 
 ## What the launcher stores on your computer
 
@@ -32,6 +32,7 @@ All of this lives under `%APPDATA%/veldboom-launcher/` and never leaves your mac
 | Installed games, versions, install paths | `installed.json` | So the launcher knows what is installed and when to offer updates |
 | Playtime and last-played timestamp | `installed.json` | Shown to you in the launcher. Never transmitted |
 | Downloaded game files | `games/` | The games themselves |
+| Usage-stats preference and random install ID | `telemetry.json` | Remembers your yes/no choice; the ID only exists after you opt in |
 | `veldboom_session.json` | Inside each game folder | Written at launch so the game knows which account is playing and which add-ons are owned. Read by the game on your machine |
 
 You can delete all of it: **Privacy & data → Delete my data** in the launcher sidebar.
@@ -40,8 +41,32 @@ installed game files.
 
 ## What leaves your computer, and to whom
 
-The launcher does not send anything to Veldboom Studios. It does talk to two third
-parties, which necessarily see your **IP address** because that is how the internet
+### Veldboom Studios — optional usage statistics (off by default)
+
+On first start the launcher asks whether you want to share anonymous usage statistics.
+**Nothing is sent unless you say yes.** If you do, the launcher reports these events to a
+Veldboom Studios endpoint (hosted on Vercel, stored in a Neon Postgres database, both
+acting as processors): launcher started, game install started/completed/failed, game
+launched and closed (with session length), add-on downloaded, file downloaded — each with
+the game id, the launcher version and a **random install ID**.
+
+What this deliberately excludes: your **name, GitHub identity, email and IP address are
+never part of these events**. The server does not store IP addresses; it records only a
+country code derived from the request. The install ID is random, minted on your machine,
+and linked to nothing else.
+
+You can turn this off at any time under **Privacy & data**. Turning it off deletes the
+install ID from your machine, so a later opt-in starts a fresh, unlinkable ID.
+
+### Veldboom Studios — feedback form
+
+If you use **Send feedback**, the text you typed, an optional contact address you choose
+to include, the launcher version and a derived country code are sent to the same
+Veldboom Studios endpoint and forwarded by email. This happens only when you press Send.
+
+### Third parties the launcher talks to
+
+Two third parties necessarily see your **IP address**, because that is how the internet
 works:
 
 ### GitHub, Inc.
@@ -78,8 +103,8 @@ provider — the launcher never sees or stores payment data.
 
 ## What the launcher does *not* do
 
-- **No analytics, telemetry, crash reporting or usage tracking.** None. There is no
-  code in the launcher that reports anything about your use of it.
+- **No usage tracking without your explicit opt-in**, and none of it identifies you when
+  you do opt in (random ID, no IP stored, no GitHub identity). No crash reporting.
 - **No advertising, no profiling, no automated decision-making, no selling of data.**
 - **No AI.** The launcher contains no AI features and sends nothing to any AI service.
 - **No access to your files** beyond its own folder and the games it installs.
@@ -105,16 +130,24 @@ to, and **cannot read, write or delete your own repositories**.
   entitlements is necessary to provide the launcher you asked for.
 - **Legitimate interest (art. 6(1)(f))** — contacting GitHub to fetch the catalog and
   updates, which is the only way to deliver the software.
+- **Consent (art. 6(1)(a))** — the anonymous usage statistics. Off by default, asked
+  explicitly, revocable at any time in **Privacy & data**, and revoking deletes the
+  install ID. The feedback form is likewise sent only on your own action.
 
-No processing here relies on consent, because nothing optional is collected. Opening a
-YouTube video is your own action, and Google asks for its own cookie consent when it
-happens.
+Opening a YouTube video is your own action, and Google asks for its own cookie consent
+when it happens.
 
 ## Retention
 
 Data stays on your computer until you delete it — via **Delete my data**, by signing
 out (token only), by uninstalling a game, or by removing
-`%APPDATA%/veldboom-launcher/`. Veldboom Studios holds nothing to retain.
+`%APPDATA%/veldboom-launcher/`. **Delete my data** also removes the usage-stats
+preference and install ID.
+
+Server side: usage events are kept for at most **24 months**, then deleted. Feedback is
+kept as long as it is useful for development. To have server-side data erased, email the
+address above — include your install ID (shown in `telemetry.json`) if you want specific
+usage events removed; without it, anonymous events cannot be linked back to you at all.
 
 ## Your rights
 

@@ -682,3 +682,20 @@ body {
 
 .btn-danger { background: transparent; border: 1px solid rgba(255, 107, 107, 0.5); color: #ff6b6b; }
 .btn-danger:hover { background: rgba(255, 107, 107, 0.12); border-color: #ff6b6b; }
+
+/* Feedback form (v1.8.0) */
+#feedback-text,
+#feedback-contact {
+  background: var(--bg-card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  box-sizing: border-box;
+}
+#feedback-text:focus,
+#feedback-contact:focus {
+  outline: none;
+  border-color: var(--accent);
+}

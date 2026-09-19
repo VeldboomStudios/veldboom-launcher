@@ -40,6 +40,70 @@ function writeInstalled(data) {
   fs.writeFileSync(installedFile(), JSON.stringify(data, null, 2));
 }
 
+// --- Usage telemetry (v1.8.0) ---
+//
+// Strictly opt-in. Until the user says yes in the consent dialog, nothing is
+// queued and nothing leaves the machine. On consent a random install id is
+// minted; it is the only identifier ever sent — never the GitHub identity.
+// Revoking consent deletes the id, so a later opt-in starts a fresh one.
+
+const TELEMETRY_URL = 'https://dream-academy.vercel.app/api/launcher/telemetry';
+const FEEDBACK_URL = 'https://dream-academy.vercel.app/api/launcher/feedback';
+
+const telemetryFile = () => path.join(app.getPath('userData'), 'telemetry.json');
+
+function readTelemetry() {
+  try {
+    const t = JSON.parse(fs.readFileSync(telemetryFile(), 'utf8'));
+    return { consent: t.consent ?? null, installId: t.installId ?? null };
+  } catch {
+    return { consent: null, installId: null };
+  }
+}
+
+function writeTelemetry(t) {
+  fs.mkdirSync(path.dirname(telemetryFile()), { recursive: true });
+  fs.writeFileSync(telemetryFile(), JSON.stringify(t, null, 2));
+}
+
+let telemetryQueue = [];
+let telemetryTimer = null;
+
+function track(event, fields = {}) {
+  const t = readTelemetry();
+  if (t.consent !== true || !t.installId) return;
+  telemetryQueue.push({ event, ...fields });
+  if (telemetryQueue.length > 200) telemetryQueue = telemetryQueue.slice(-200);
+  if (!telemetryTimer) {
+    telemetryTimer = setTimeout(() => flushTelemetry(), 15000);
+  }
+}
+
+async function flushTelemetry() {
+  clearTimeout(telemetryTimer);
+  telemetryTimer = null;
+  if (telemetryQueue.length === 0) return;
+  const t = readTelemetry();
+  if (t.consent !== true || !t.installId) {
+    telemetryQueue = [];
+    return;
+  }
+  const batch = telemetryQueue.splice(0, 50);
+  try {
+    await net.fetch(TELEMETRY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'VeldboomLauncher' },
+      body: JSON.stringify({ installId: t.installId, version: app.getVersion(), events: batch }),
+    });
+  } catch {
+    // Offline or endpoint down: put the batch back and try again next flush.
+    telemetryQueue = batch.concat(telemetryQueue).slice(-200);
+  }
+  if (telemetryQueue.length > 0 && !telemetryTimer) {
+    telemetryTimer = setTimeout(() => flushTelemetry(), 15000);
+  }
+}
+
 // --- Auth token storage (encrypted at rest via OS keychain / DPAPI) ---
 //
 // Stored shape is a JSON record so we can keep the grant kind and expiry next to
@@ -428,7 +492,7 @@ ipcMain.handle('privacy:summary', async () => {
         policy: 'https://policies.google.com/privacy',
       },
     ],
-    noAnalytics: true,
+    telemetry: readTelemetry().consent,
   };
 });
 
@@ -447,6 +511,11 @@ ipcMain.handle('privacy:deleteData', async () => {
   if (fs.existsSync(gamesDir())) {
     await fsp.rm(gamesDir(), { recursive: true, force: true });
     removed.push('Installed game files');
+  }
+  if (fs.existsSync(telemetryFile())) {
+    telemetryQueue = [];
+    await fsp.rm(telemetryFile(), { force: true });
+    removed.push('Usage-statistics ID and preference');
   }
   return { removed };
 });
@@ -483,6 +552,8 @@ ipcMain.handle('games:install', async (_e, game) => {
   const dir = path.join(gamesDir(), game.id);
   const zipPath = path.join(app.getPath('temp'), `${game.id}.zip`);
 
+  track('install_started', { gameId: game.id, gameVersion: game.latest.version });
+  try {
   sendProgress(game.id, 'downloading', 0);
   // Progress with live speed: smooth bytes/sec over a short window.
   let lastT = Date.now();
@@ -523,7 +594,12 @@ ipcMain.handle('games:install', async (_e, game) => {
   };
   writeInstalled(installed);
   sendProgress(game.id, 'done', 1);
+  track('install_completed', { gameId: game.id, gameVersion: game.latest.version });
   return installed[game.id];
+  } catch (err) {
+    track('install_failed', { gameId: game.id, gameVersion: game.latest.version });
+    throw err;
+  }
 });
 
 // Account link: hand the game who is playing and which DLC they own, refreshed at
@@ -583,6 +659,7 @@ ipcMain.handle('games:launch', async (_e, id) => {
   // Playtime: count until the process we spawned exits (session lost if the launcher closes first).
   const started = Date.now();
   sendRunning(id, true);
+  track('game_launched', { gameId: id, gameVersion: inst.version });
   child.on('exit', () => {
     sendRunning(id, false);
     const installed = readInstalled();
@@ -591,6 +668,7 @@ ipcMain.handle('games:launch', async (_e, id) => {
       installed[id].lastPlayed = new Date().toISOString();
       writeInstalled(installed);
     }
+    track('game_closed', { gameId: id, gameVersion: inst.version, sessionMs: Date.now() - started });
   });
   child.on('error', () => sendRunning(id, false));
   return true;
@@ -694,6 +772,7 @@ ipcMain.handle('dlc:install', async (_e, { gameId, dlc }) => {
   inst.dlc[dlc.id] = { version: dlc.latest.version };
   writeInstalled(installed);
   sendProgress(progressId, 'done', 1);
+  track('dlc_downloaded', { gameId: `${gameId}:${dlc.id}`, gameVersion: dlc.latest.version });
   return true;
 });
 
@@ -749,12 +828,55 @@ ipcMain.handle('files:download', async (_e, { url, name, progressId }) => {
   try {
     await downloadAsset(url, filePath, (p) => sendProgress(progressId, 'downloading', p));
     sendProgress(progressId, 'done', 1);
+    track('file_downloaded', { gameId: String(name || '').slice(0, 64) });
     shell.showItemInFolder(filePath);
     return filePath;
   } catch (err) {
     sendProgress(progressId, 'done', 1);
     throw err;
   }
+});
+
+// --- Telemetry & feedback IPC ---
+
+ipcMain.handle('telemetry:get', () => {
+  const t = readTelemetry();
+  return { consent: t.consent };
+});
+
+ipcMain.handle('telemetry:setConsent', (_e, consent) => {
+  const t = readTelemetry();
+  if (consent === true) {
+    t.consent = true;
+    if (!t.installId) t.installId = require('node:crypto').randomUUID();
+  } else {
+    // Revoking deletes the id too — a later opt-in starts a fresh, unlinkable one.
+    t.consent = false;
+    t.installId = null;
+    telemetryQueue = [];
+  }
+  writeTelemetry(t);
+  if (t.consent === true) track('launcher_started');
+  return { consent: t.consent };
+});
+
+ipcMain.handle('feedback:send', async (_e, { message, contact, gameId }) => {
+  const text = String(message || '').trim();
+  if (!text) throw new Error('Write something first.');
+  const t = readTelemetry();
+  const res = await net.fetch(FEEDBACK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'User-Agent': 'VeldboomLauncher' },
+    body: JSON.stringify({
+      message: text.slice(0, 4000),
+      contact: String(contact || '').slice(0, 200) || null,
+      gameId: String(gameId || '').slice(0, 64) || null,
+      installId: t.consent === true ? t.installId : null,
+      version: app.getVersion(),
+    }),
+  });
+  if (!res.ok) throw new Error(`Could not send feedback (HTTP ${res.status}). Try again later.`);
+  return true;
 });
 
 ipcMain.handle('app:version', () => app.getVersion());
@@ -834,6 +956,7 @@ ipcMain.handle('updater:install', () => {
 
 app.whenReady().then(() => {
   createWindow();
+  track('launcher_started');
   if (app.isPackaged) {
     autoUpdater.checkForUpdatesAndNotify().catch(() => {});
   }
@@ -844,4 +967,9 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+// Best-effort: push whatever is still queued before the process goes away.
+app.on('before-quit', () => {
+  flushTelemetry();
 });

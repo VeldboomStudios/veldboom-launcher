@@ -23,6 +23,7 @@
         </div>
         <div class="sidebar-links">
           <button id="privacy-open" class="link-btn">Privacy &amp; data</button>
+          <button id="feedback-open" class="link-btn">Send feedback</button>
         </div>
         <span id="launcher-version"></span>
       </div>
@@ -162,8 +163,8 @@
       <div class="detail-body">
         <h2>Privacy &amp; your data</h2>
         <p class="login-hint">
-          The launcher has no server and no analytics. Everything below is stored on this
-          computer only.
+          Usage statistics are off unless you switch them on, and everything else below is
+          stored on this computer only.
         </p>
         <div id="privacy-body" class="privacy-body">Loading…</div>
         <div class="detail-actions">
@@ -172,6 +173,45 @@
           <button id="privacy-delete-btn" class="btn btn-danger">Delete my data</button>
         </div>
         <p id="privacy-delete-status" class="login-status hidden"></p>
+      </div>
+    </div>
+  </div>
+
+  <div id="consent-overlay" class="overlay hidden">
+    <div class="detail-card privacy-card">
+      <div class="detail-body">
+        <h2>Help improve the launcher?</h2>
+        <p class="login-hint">
+          With your permission the launcher shares anonymous usage statistics: which games are
+          installed, launched and how long they run, plus the launcher version and your country.
+          It uses a random ID &mdash; never your name, GitHub account, IP address or files. You can
+          change your mind any time under Privacy &amp; data, and revoking deletes the ID.
+        </p>
+        <div class="detail-actions">
+          <button id="consent-yes" class="btn btn-primary">Share anonymous stats</button>
+          <button id="consent-no" class="btn btn-ghost">No thanks</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="feedback-overlay" class="overlay hidden">
+    <div class="detail-card privacy-card">
+      <button id="feedback-close" class="detail-close">&times;</button>
+      <div class="detail-body">
+        <h2>Send feedback</h2>
+        <p class="login-hint">
+          Goes straight to Veldboom Studios. Leave an email if you want a reply &mdash; otherwise
+          it is completely anonymous.
+        </p>
+        <textarea id="feedback-text" rows="6" style="width:100%; resize:vertical;"
+          placeholder="What works, what breaks, what you wish the launcher or a game did..."></textarea>
+        <input id="feedback-contact" type="text" style="width:100%; margin-top:8px;"
+          placeholder="Email or Discord (optional)" />
+        <div class="detail-actions">
+          <button id="feedback-send" class="btn btn-primary">Send</button>
+        </div>
+        <p id="feedback-status" class="login-status hidden"></p>
       </div>
     </div>
   </div>
