@@ -47,8 +47,8 @@ function writeInstalled(data) {
 // minted; it is the only identifier ever sent — never the GitHub identity.
 // Revoking consent deletes the id, so a later opt-in starts a fresh one.
 
-const TELEMETRY_URL = 'https://dream-academy.vercel.app/api/launcher/telemetry';
-const FEEDBACK_URL = 'https://dream-academy.vercel.app/api/launcher/feedback';
+const TELEMETRY_URL = 'https://dream-academy-iota.vercel.app/api/launcher/telemetry';
+const FEEDBACK_URL = 'https://dream-academy-iota.vercel.app/api/launcher/feedback';
 
 const telemetryFile = () => path.join(app.getPath('userData'), 'telemetry.json');
 
